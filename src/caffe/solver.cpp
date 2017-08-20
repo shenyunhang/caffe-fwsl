@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <sstream>
 
 #include "caffe/solver.hpp"
 #include "caffe/util/bbox_util.hpp"
@@ -515,6 +516,7 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
     const map<int, int>& num_pos = all_num_pos.find(i)->second;
     map<int, float> APs;
     float mAP = 0.;
+    std::stringstream APs_string;
     // Sort true_pos and false_pos with descend scores.
     for (map<int, int>::const_iterator it = num_pos.begin();
          it != num_pos.end(); ++it) {
@@ -539,12 +541,15 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
       if (param_.show_per_class_result()) {
         LOG(INFO) << "class" << label << ": " << APs[label];
       }
+      int ap = round(APs[label] * 10000);
+      APs_string << "&" << ap / 100 << "." << ap % 100 / 10 << ap % 10 << "\t";
     }
     mAP /= num_pos.size();
     const int output_blob_index = test_net->output_blob_indices()[i];
     const string& output_name = test_net->blob_names()[output_blob_index];
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
               << mAP;
+    LOG(INFO) << APs_string.str();
   }
 }
 
