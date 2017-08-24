@@ -126,6 +126,11 @@ class DataTransformer {
                    AnnotatedDatum* expanded_anno_datum);
 
   /**
+   * @brief Expand the datum and adjust roi.
+   */
+  void ExpandImage(const RoIDatum& roi_datum, RoIDatum* expanded_roi_datum);
+
+  /**
    * @brief Apply distortion to the datum.
    */
   void DistortImage(const Datum& datum, Datum* distort_datum);

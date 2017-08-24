@@ -232,6 +232,43 @@ bool ReadRichImageToAnnotatedDatum(const string& filename,
   }
 }
 
+bool ReadRichImageToRoIDatum(const string &filename, const string &labelfile,
+                             const string &roifile, const int height,
+                             const int width, const int min_dim,
+                             const int max_dim, const bool is_color,
+                             const string &encoding, const string &labeltype,
+                             const std::map<string, int> &name_to_label,
+                             RoIDatum *roi_datum) {
+  // Read image to datum.
+  bool status =
+      ReadImageToDatum(filename, -1, height, width, min_dim, max_dim, is_color,
+                       encoding, roi_datum->mutable_datum());
+  if (status == false) {
+    return false;
+  }
+  if (!boost::filesystem::exists(labelfile)) {
+    return false;
+  }
+  if (!boost::filesystem::exists(roifile)) {
+    return false;
+  }
+
+  int ori_height, ori_width;
+  GetImageSize(filename, &ori_height, &ori_width);
+
+  status = ReadXMLToRoIDatum(labelfile, ori_height, ori_width, name_to_label,
+                             roi_datum);
+  if (status == false) {
+    return false;
+  }
+
+  status = ReadTxtToRoIDatum(roifile, ori_height, ori_width, roi_datum);
+  if (status == false) {
+    return false;
+  }
+  return true;
+}
+
 #endif  // USE_OPENCV
 
 bool ReadFileToDatum(const string& filename, const int label,
@@ -354,6 +391,67 @@ bool ReadXMLToAnnotatedDatum(const string& labelfile, const int img_height,
       }
     }
   }
+  return true;
+}
+
+// Parse VOC/ILSVRC classification annotation.
+bool ReadXMLToRoIDatum(const string &labelfile, const int img_height,
+                       const int img_width,
+                       const std::map<string, int> &name_to_label,
+                       RoIDatum *roi_datum) {
+  ptree pt;
+  read_xml(labelfile, pt);
+
+  // Parse annotation.
+  int width = 0, height = 0;
+  try {
+    height = pt.get<int>("annotation.size.height");
+    width = pt.get<int>("annotation.size.width");
+  } catch (const ptree_error &e) {
+    LOG(WARNING) << "When parsing " << labelfile << ": " << e.what();
+    height = img_height;
+    width = img_width;
+  }
+  LOG_IF(WARNING, height != img_height) << labelfile
+                                        << " inconsistent image height.";
+  LOG_IF(WARNING, width != img_width) << labelfile
+                                      << " inconsistent image width.";
+  CHECK(width != 0 && height != 0) << labelfile
+                                   << " no valid image width/height.";
+  bool difficult = true;
+  BOOST_FOREACH (ptree::value_type &v1, pt.get_child("annotation")) {
+    ptree pt1 = v1.second;
+    if (v1.first == "object") {
+      ptree object = v1.second;
+      BOOST_FOREACH (ptree::value_type &v2, object.get_child("")) {
+        ptree pt2 = v2.second;
+        if (v2.first == "name") {
+          string name = pt2.data();
+          if (name_to_label.find(name) == name_to_label.end()) {
+            LOG(FATAL) << "Unknown name: " << name;
+          }
+          int label = name_to_label.find(name)->second;
+
+          bool found_label = false;
+          for (int g = 0; g < roi_datum->label_size(); ++g) {
+            int label_datum = roi_datum->label(g);
+            if (label_datum == label) {
+              found_label = true;
+              break;
+            }
+          }
+          if (!found_label) {
+            roi_datum->add_label(label);
+          }
+        } else if (v2.first == "difficult") {
+	  bool difficult_ = (pt2.data() == "1");
+          difficult = (difficult && difficult_);
+        } else if (v2.first == "bndbox") {
+        }
+      }
+    }
+  }
+  roi_datum->set_difficult(difficult);
   return true;
 }
 
@@ -526,6 +624,47 @@ bool ReadTxtToAnnotatedDatum(const string& labelfile, const int height,
     bbox->set_difficult(false);
   }
   return true;
+}
+
+bool ReadTxtToRoIDatum(const string &roifile, const int height, const int width,
+                       RoIDatum *roi_datum) {
+  std::ifstream infile(roifile.c_str());
+  if (!infile.good()) {
+    LOG(INFO) << "Cannot open " << roifile;
+    return false;
+  }
+  float xmin, ymin, xmax, ymax;
+  float score;
+  int num_roi = 0;
+  while (infile >> xmin >> ymin >> xmax >> ymax >> score) {
+
+    LOG_IF(WARNING, xmin > width) << roifile
+                                  << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, ymin > height) << roifile
+                                   << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, xmax > width) << roifile
+                                  << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, ymax > height) << roifile
+                                   << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, xmin < 0) << roifile
+                              << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, ymin < 0) << roifile
+                              << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, xmax < 0) << roifile
+                              << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, ymax < 0) << roifile
+                              << " bounding box exceeds image boundary.";
+    LOG_IF(WARNING, xmin > xmax) << roifile << " bounding box irregular.";
+    LOG_IF(WARNING, ymin > ymax) << roifile << " bounding box irregular.";
+
+    num_roi++;
+  }
+
+  Datum *roi = roi_datum->mutable_roi();
+  roi->set_channels(1);
+  roi->set_height(num_roi);
+  roi->set_width(5);
+  return ReadFileToDatum(roifile, -1, roi);
 }
 
 bool ReadLabelFileToLabelMap(const string& filename, bool include_background,

@@ -203,9 +203,30 @@ inline bool ReadRichImageToAnnotatedDatum(const string& filename,
                       anno_datum);
 }
 
+bool ReadRichImageToRoIDatum(
+    const string &filename, const string &labelname, const string &roiname,
+    const int height, const int width, const int min_dim, const int max_dim,
+    const bool is_color, const std::string &encoding, const string &labeltype,
+    const std::map<string, int> &name_to_label, RoIDatum *roi_datum);
+
+inline bool ReadRichImageToRoIDatum(
+    const string &filename, const string &labelname, const string &roiname,
+    const int height, const int width, const bool is_color,
+    const std::string &encoding, const string &labeltype,
+    const std::map<string, int> &name_to_label, RoIDatum *roi_datum) {
+  return ReadRichImageToRoIDatum(filename, labelname, roiname, height, width, 0,
+                                 0, is_color, encoding, labeltype,
+                                 name_to_label, roi_datum);
+}
+
 bool ReadXMLToAnnotatedDatum(const string& labelname, const int img_height,
     const int img_width, const std::map<string, int>& name_to_label,
     AnnotatedDatum* anno_datum);
+
+bool ReadXMLToRoIDatum(const string &roiname, const int img_height,
+                       const int img_width,
+                       const std::map<string, int> &name_to_label,
+                       RoIDatum *roi_datum);
 
 bool ReadJSONToAnnotatedDatum(const string& labelname, const int img_height,
     const int img_width, const std::map<string, int>& name_to_label,
@@ -213,6 +234,9 @@ bool ReadJSONToAnnotatedDatum(const string& labelname, const int img_height,
 
 bool ReadTxtToAnnotatedDatum(const string& labelname, const int height,
     const int width, AnnotatedDatum* anno_datum);
+
+bool ReadTxtToRoIDatum(const string &roiname, const int height,
+                       const int width, RoIDatum *roi_datum);
 
 bool ReadLabelFileToLabelMap(const string& filename, bool include_background,
     const string& delimiter, LabelMap* map);

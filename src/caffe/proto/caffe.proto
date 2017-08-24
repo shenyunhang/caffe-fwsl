@@ -154,6 +154,14 @@ message AnnotatedDatum {
   repeated AnnotationGroup annotation_group = 3;
 }
 
+// An extension of Datum which contains RoIs.
+message RoIDatum {
+  optional Datum datum = 1;
+  optional Datum roi = 2;
+  repeated int32 label = 3;
+  optional bool difficult = 4;
+}
+
 message FillerParameter {
   // The filler type.
   optional string type = 1 [default = 'constant'];
@@ -542,6 +550,9 @@ message LayerParameter {
   optional TileParameter tile_param = 138;
   optional VideoDataParameter video_data_param = 207;
   optional WindowDataParameter window_data_param = 129;
+
+
+  optional RoIDataParameter roi_data_param = 1999;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1721,6 +1732,14 @@ message SPPParameter {
     CUDNN = 2;
   }
   optional Engine engine = 6 [default = DEFAULT];
+}
+
+message RoIDataParameter {
+  // Define the sampler.
+  repeated BatchSampler batch_sampler = 1;
+  // Store label name and label id in LabelMap format.
+  optional string label_map_file = 2;
+  optional int32 num_class = 3 [default = 20];
 }
 
 // DEPRECATED: use LayerParameter.

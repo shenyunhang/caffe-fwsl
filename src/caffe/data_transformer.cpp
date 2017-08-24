@@ -536,6 +536,62 @@ void DataTransformer<Dtype>::ExpandImage(const AnnotatedDatum& anno_datum,
 }
 
 template<typename Dtype>
+void DataTransformer<Dtype>::ExpandImage(const RoIDatum& roi_datum,
+                                         RoIDatum* expanded_roi_datum) {
+  if (!param_.has_expand_param()) {
+    expanded_roi_datum->CopyFrom(roi_datum);
+    return;
+  }
+  const ExpansionParameter& expand_param = param_.expand_param();
+  const float expand_prob = expand_param.prob();
+  float prob;
+  caffe_rng_uniform(1, 0.f, 1.f, &prob);
+  if (prob > expand_prob) {
+    expanded_roi_datum->CopyFrom(roi_datum);
+    return;
+  }
+  const float max_expand_ratio = expand_param.max_expand_ratio();
+  if (fabs(max_expand_ratio - 1.) < 1e-2) {
+    expanded_roi_datum->CopyFrom(roi_datum);
+    return;
+  }
+  float expand_ratio;
+  caffe_rng_uniform(1, 1.f, max_expand_ratio, &expand_ratio);
+  // Expand the datum.
+  NormalizedBBox expand_bbox;
+  ExpandImage(roi_datum.datum(), expand_ratio, &expand_bbox,
+              expanded_roi_datum->mutable_datum());
+
+  // Expand the roi.
+  const int datum_height = roi_datum.datum().height();
+  const int datum_width = roi_datum.datum().width();
+  const float w_off = expand_bbox->xmin() * datum_width;
+  const float h_off = expand_bbox->ymin() * datum_height;
+
+  const Datum& roi = roi_datum.roi();
+  const string& data = roi.data();
+  std::stringstream ss(data);
+  std::stringstream expand_ss;
+  LOG(INFO) << data;
+
+  float xmin, ymin, xmax, ymax;
+  float expand_xmin, expand_ymin, expand_xmax, expand_ymax;
+  float score;
+  // TODO(YH): 这里可能会降低精度
+  while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
+    LOG(INFO) << xmin << " " << ymin << " " << xmax << " " << ymax << " " << score;
+    expand_xmin = xmin - w_off;
+    expand_ymin = ymin - h_off;
+    expand_xmax = xmax - w_off;
+    expand_ymax = ymax - h_off;
+    expand_ss << expand_xmin << expand_ymin << expand_xmax << expand_ymax << score << "\n";
+  }
+
+  expanded_roi_datum->mutable_roi()->set_data(expand_ss)
+
+}
+
+template<typename Dtype>
 void DataTransformer<Dtype>::DistortImage(const Datum& datum,
                                           Datum* distort_datum) {
   if (!param_.has_distort_param()) {
