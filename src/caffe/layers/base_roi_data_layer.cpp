@@ -13,18 +13,18 @@ namespace caffe {
 
 template <typename Dtype>
 BaseRoIDataLayer<Dtype>::BaseRoIDataLayer(const LayerParameter& param)
-    : Layer<Dtype>(param),
-      transform_param_(param.transform_param()) {
-}
+    : Layer<Dtype>(param), transform_param_(param.transform_param()) {}
 
 template <typename Dtype>
 void BaseRoIDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
-  if (top.size() == 2) {
+                                         const vector<Blob<Dtype>*>& top) {
+  if (top.size() == 4) {
     output_labels_ = false;
   } else {
     output_labels_ = true;
   }
+  // TODO(YH): we set output_labels_ false currently
+  output_labels_ = false;
   data_transformer_.reset(
       new DataTransformer<Dtype>(transform_param_, this->phase_));
   data_transformer_->InitRand();
@@ -35,8 +35,7 @@ void BaseRoIDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 BasePrefetchingRoIDataLayer<Dtype>::BasePrefetchingRoIDataLayer(
     const LayerParameter& param)
-    : BaseRoIDataLayer<Dtype>(param),
-      prefetch_free_(), prefetch_full_() {
+    : BaseRoIDataLayer<Dtype>(param), prefetch_free_(), prefetch_full_() {
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
     prefetch_free_.push(&prefetch_[i]);
   }
@@ -52,16 +51,22 @@ void BasePrefetchingRoIDataLayer<Dtype>::LayerSetUp(
   // seems to cause failures if we do not so.
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
     prefetch_[i].data_.mutable_cpu_data();
+    prefetch_[i].roi_.mutable_cpu_data();
+    prefetch_[i].roi_score_.mutable_cpu_data();
+    prefetch_[i].label_.mutable_cpu_data();
     if (this->output_labels_) {
-      prefetch_[i].label_.mutable_cpu_data();
+      prefetch_[i].box_.mutable_cpu_data();
     }
   }
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
     for (int i = 0; i < PREFETCH_COUNT; ++i) {
       prefetch_[i].data_.mutable_gpu_data();
+      prefetch_[i].roi_.mutable_gpu_data();
+      prefetch_[i].roi_score_.mutable_gpu_data();
+      prefetch_[i].label_.mutable_gpu_data();
       if (this->output_labels_) {
-        prefetch_[i].label_.mutable_gpu_data();
+        prefetch_[i].box_.mutable_gpu_data();
       }
     }
   }
@@ -106,6 +111,8 @@ void BasePrefetchingRoIDataLayer<Dtype>::InternalThreadEntry() {
 template <typename Dtype>
 void BasePrefetchingRoIDataLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  // LOG(INFO)<<"prefetch_free_: "<<prefetch_free_.size();
+  // LOG(INFO)<<"prefetch_full_: "<<prefetch_full_.size();
   Batch<Dtype>* batch = prefetch_full_.pop("Data layer prefetch queue empty");
   // Reshape to loaded data.
   top[0]->ReshapeLike(batch->data_);
@@ -113,19 +120,31 @@ void BasePrefetchingRoIDataLayer<Dtype>::Forward_cpu(
   caffe_copy(batch->data_.count(), batch->data_.cpu_data(),
              top[0]->mutable_cpu_data());
 
-  // Reshape to loaded rois.
+  // Reshape to loaded roi.
   top[1]->ReshapeLike(batch->roi_);
-  // Copy the data
+  // Copy the roi.
   caffe_copy(batch->roi_.count(), batch->roi_.cpu_data(),
              top[1]->mutable_cpu_data());
 
+  // Reshape to loaded roi_score.
+  top[2]->ReshapeLike(batch->roi_score_);
+  // Copy the roi_score.
+  caffe_copy(batch->roi_score_.count(), batch->roi_score_.cpu_data(),
+             top[2]->mutable_cpu_data());
+
+  // Reshape to loaded label.
+  top[3]->ReshapeLike(batch->label_);
+  // Copy the label.
+  caffe_copy(batch->label_.count(), batch->label_.cpu_data(),
+             top[3]->mutable_cpu_data());
+
   DLOG(INFO) << "Prefetch copied";
   if (this->output_labels_) {
-    // Reshape to loaded labels.
-    top[2]->ReshapeLike(batch->label_);
-    // Copy the labels.
-    caffe_copy(batch->label_.count(), batch->label_.cpu_data(),
-        top[2]->mutable_cpu_data());
+    // Reshape to loaded box.
+    top[4]->ReshapeLike(batch->box_);
+    // Copy the box.
+    caffe_copy(batch->box_.count(), batch->box_.cpu_data(),
+               top[4]->mutable_cpu_data());
   }
 
   prefetch_free_.push(batch);

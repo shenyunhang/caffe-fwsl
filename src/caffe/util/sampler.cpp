@@ -160,4 +160,24 @@ void GenerateBatchSamples(const AnnotatedDatum& anno_datum,
   }
 }
 
+void GenerateBatchSamples(const RoIDatum &roi_datum,
+                          const vector<BatchSampler> &batch_samplers,
+                          vector<NormalizedBBox> *sampled_bboxes) {
+  sampled_bboxes->clear();
+  vector<NormalizedBBox> object_bboxes;
+  const AnnotatedDatum &anno_datum = roi_datum.anno_datum();
+  GroupObjectBBoxes(anno_datum, &object_bboxes);
+  for (int i = 0; i < batch_samplers.size(); ++i) {
+    if (batch_samplers[i].use_original_image()) {
+      NormalizedBBox unit_bbox;
+      unit_bbox.set_xmin(0);
+      unit_bbox.set_ymin(0);
+      unit_bbox.set_xmax(1);
+      unit_bbox.set_ymax(1);
+      GenerateSamples(unit_bbox, object_bboxes, batch_samplers[i],
+                      sampled_bboxes);
+    }
+  }
+}
+
 }  // namespace caffe

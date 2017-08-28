@@ -34,6 +34,13 @@ void GenerateBatchSamples(const AnnotatedDatum& anno_datum,
                           const vector<BatchSampler>& batch_samplers,
                           vector<NormalizedBBox>* sampled_bboxes);
 
+// Generate samples from RoIDatum using the BatchSampler.
+// All sampled bboxes which satisfy the constraints defined in BatchSampler
+// is stored in sampled_bboxes.
+void GenerateBatchSamples(const RoIDatum& roi_datum,
+                          const vector<BatchSampler>& batch_samplers,
+                          vector<NormalizedBBox>* sampled_bboxes);
+
 }  // namespace caffe
 
 #endif  // CAFFE_UTIL_SAMPLER_H_

@@ -203,20 +203,25 @@ inline bool ReadRichImageToAnnotatedDatum(const string& filename,
                       anno_datum);
 }
 
-bool ReadRichImageToRoIDatum(
-    const string &filename, const string &labelname, const string &roiname,
-    const int height, const int width, const int min_dim, const int max_dim,
-    const bool is_color, const std::string &encoding, const string &labeltype,
-    const std::map<string, int> &name_to_label, RoIDatum *roi_datum);
+bool ReadRichImageToRoIDatum(const string &filename, const string &labelname,
+                             const string &roiname, const int height,
+                             const int width, const int min_dim,
+                             const int max_dim, const bool is_color,
+                             const std::string &encoding,
+                             const AnnotatedDatum_AnnotationType type,
+                             const string &labeltype,
+                             const std::map<string, int> &name_to_label,
+                             const bool need_box, RoIDatum *roi_datum);
 
 inline bool ReadRichImageToRoIDatum(
     const string &filename, const string &labelname, const string &roiname,
     const int height, const int width, const bool is_color,
-    const std::string &encoding, const string &labeltype,
-    const std::map<string, int> &name_to_label, RoIDatum *roi_datum) {
+    const std::string &encoding, const AnnotatedDatum_AnnotationType type,
+    const string &labeltype, const std::map<string, int> &name_to_label,
+    const bool need_box, RoIDatum *roi_datum) {
   return ReadRichImageToRoIDatum(filename, labelname, roiname, height, width, 0,
-                                 0, is_color, encoding, labeltype,
-                                 name_to_label, roi_datum);
+                                 0, is_color, encoding, type, labeltype,
+                                 name_to_label, need_box, roi_datum);
 }
 
 bool ReadXMLToAnnotatedDatum(const string& labelname, const int img_height,

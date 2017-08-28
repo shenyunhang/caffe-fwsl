@@ -236,13 +236,25 @@ bool ReadRichImageToRoIDatum(const string &filename, const string &labelfile,
                              const string &roifile, const int height,
                              const int width, const int min_dim,
                              const int max_dim, const bool is_color,
-                             const string &encoding, const string &labeltype,
+                             const string &encoding,
+                             const AnnotatedDatum_AnnotationType type,
+                             const string &labeltype,
                              const std::map<string, int> &name_to_label,
-                             RoIDatum *roi_datum) {
-  // Read image to datum.
-  bool status =
-      ReadImageToDatum(filename, -1, height, width, min_dim, max_dim, is_color,
-                       encoding, roi_datum->mutable_datum());
+                             const bool need_box, RoIDatum *roi_datum) {
+  bool status;
+
+  AnnotatedDatum *anno_datum = roi_datum->mutable_anno_datum();
+  if (need_box) {
+    status = ReadRichImageToAnnotatedDatum(
+        filename, labelfile, height, width, min_dim, max_dim, is_color,
+        encoding, type, labeltype, name_to_label, anno_datum);
+  } else {
+    status = ReadRichImageToAnnotatedDatum(
+        filename, "", height, width, min_dim, max_dim, is_color, encoding, type,
+        labeltype, name_to_label, anno_datum);
+  }
+  anno_datum->set_type(AnnotatedDatum_AnnotationType_BBOX);
+
   if (status == false) {
     return false;
   }

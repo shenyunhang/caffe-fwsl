@@ -20,6 +20,10 @@ void UpdateBBoxByResizePolicy(const ResizeParameter& param,
                               const int old_width, const int old_height,
                               NormalizedBBox* bbox);
 
+void UpdateBBoxByResizePolicy(const ResizeParameter &param, const int old_width,
+                              const int old_height, float *x_min, float *y_min,
+                              float *x_max, float *y_max);
+
 void InferNewSize(const ResizeParameter& resize_param,
                   const int old_width, const int old_height,
                   int* new_width, int* new_height);

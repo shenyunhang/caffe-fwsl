@@ -81,6 +81,19 @@ class DataTransformer {
                  Blob<Dtype>* transformed_blob,
                  vector<AnnotationGroup>* transformed_anno_vec);
 
+  void Transform(const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
+                 string* transformed_roi_str, bool *do_mirror);
+  void Transform(const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
+                 string* transformed_roi_str);
+
+  void Transform(const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
+                 string *transformed_roi_str,
+                 vector<AnnotationGroup> *transformed_anno_vec,
+                 bool *do_mirror);
+  void Transform(const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
+                 string *transformed_roi_str,
+                 vector<AnnotationGroup> *transformed_anno_vec);
+
   /**
    * @brief Transform the annotation according to the transformation applied
    * to the datum.
@@ -101,6 +114,11 @@ class DataTransformer {
       const NormalizedBBox& crop_bbox, const bool do_mirror,
       RepeatedPtrField<AnnotationGroup>* transformed_anno_group_all);
 
+  void TransformRoI(
+    const RoIDatum& roi_datum, const bool do_resize,
+    const NormalizedBBox& crop_bbox, const bool do_mirror,
+    string* roi_str);
+
   /**
    * @brief Crops the datum according to bbox.
    */
@@ -112,6 +130,12 @@ class DataTransformer {
    */
   void CropImage(const AnnotatedDatum& anno_datum, const NormalizedBBox& bbox,
                  AnnotatedDatum* cropped_anno_datum);
+
+  /**
+   * @brief Crops the datum and AnnotationGroup according to bbox.
+   */
+  void CropImage(const RoIDatum& roi_datum, const NormalizedBBox& bbox,
+                 RoIDatum* cropped_roi_datum);
 
   /**
    * @brief Expand the datum.

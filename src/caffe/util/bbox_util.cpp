@@ -1127,8 +1127,87 @@ template void GetGroundTruth(const float* gt_data, const int num_gt,
       const int background_label_id, const bool use_difficult_gt,
       map<int, LabelBBox>* all_gt_bboxes);
 template void GetGroundTruth(const double* gt_data, const int num_gt,
-      const int background_label_id, const bool use_difficult_gt,
-      map<int, LabelBBox>* all_gt_bboxes);
+                             const int background_label_id,
+                             const bool use_difficult_gt,
+                             map<int, LabelBBox>* all_gt_bboxes);
+
+template <typename Dtype>
+void GetLocRoI(const Dtype* loc_data, const int num, const int num_loc_classes,
+               const bool share_location, vector<LabelBBox>* loc_preds) {
+  loc_preds->clear();
+  if (share_location) {
+    CHECK_EQ(num_loc_classes, 1);
+  }
+
+  int img_idx = -1;
+  int img_roi_num = -1;
+
+  int img_num = 0;
+  std::vector<Dtype> roi_num_vec;
+  for (int i = 0; i < num; ++i) {
+    // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
+    if (img_idx == loc_data[i * 5]) {
+      img_roi_num++;
+    } else {
+      CHECK_EQ(img_idx + 1, loc_data[i * 5])
+          << "img_idx should increase one by one in RoI blob.";
+      if (img_idx >= 0 && img_roi_num > 0) {
+        img_num++;
+        roi_num_vec.push_back(img_roi_num);
+      }
+      img_idx = loc_data[5];
+      img_roi_num = 1;
+    }
+    if (i + 1 == num) {
+      if (img_idx >= 0 && img_roi_num > 0) {
+        img_num++;
+        roi_num_vec.push_back(img_roi_num);
+      }
+    }
+  }
+  loc_preds->resize(img_num);
+
+  img_idx = -1;
+  int img_roi_idx = -1;
+  for (int i = 0; i < num; ++i) {
+    // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
+    if (img_idx == loc_data[0]) {
+      img_roi_idx++;
+    } else {
+      CHECK_EQ(img_idx + 1, loc_data[0])
+          << "img_idx should increase one by one in RoI blob.";
+      img_idx = loc_data[0];
+      img_roi_idx = 0;
+    }
+    Dtype xmin = loc_data[1];
+    Dtype ymin = loc_data[2];
+    Dtype xmax = loc_data[3];
+    Dtype ymax = loc_data[4];
+
+    LabelBBox& label_bbox = (*loc_preds)[img_idx];
+
+    for (int c = 0; c < num_loc_classes; ++c) {
+      int label = share_location ? -1 : c;
+      if (label_bbox.find(label) == label_bbox.end()) {
+        label_bbox[label].resize(roi_num_vec[img_idx]);
+      }
+      label_bbox[label][img_roi_idx].set_xmin(xmin);
+      label_bbox[label][img_roi_idx].set_ymin(ymin);
+      label_bbox[label][img_roi_idx].set_xmax(xmax);
+      label_bbox[label][img_roi_idx].set_ymax(ymax);
+    }
+
+    loc_data += 5;
+  }
+}
+
+// Explicit initialization.
+template void GetLocRoI(const float* loc_data, const int num,
+                        const int num_loc_classes, const bool share_location,
+                        vector<LabelBBox>* loc_preds);
+template void GetLocRoI(const double* loc_data, const int num,
+                        const int num_loc_classes, const bool share_location,
+                        vector<LabelBBox>* loc_preds);
 
 template <typename Dtype>
 void GetLocPredictions(const Dtype* loc_data, const int num,

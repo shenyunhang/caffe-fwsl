@@ -39,6 +39,7 @@ DEFINE_bool(gray, false,
             "When this option is on, treat images as grayscale ones");
 DEFINE_bool(shuffle, false,
             "Randomly shuffle the order of images and their labels");
+DEFINE_bool(need_box, false, "Whether need get box annotation.");
 DEFINE_string(backend, "lmdb",
               "The backend {lmdb, leveldb} for storing the result");
 DEFINE_string(label_type, "xml", "The type of annotation file format.");
@@ -86,9 +87,11 @@ int main(int argc, char** argv) {
   }
 
   const bool is_color = !FLAGS_gray;
+  const bool need_box = FLAGS_need_box;
   const bool check_size = FLAGS_check_size;
   const bool encoded = FLAGS_encoded;
   const string encode_type = FLAGS_encode_type;
+  AnnotatedDatum_AnnotationType type;
   const string label_type = FLAGS_label_type;
   const string label_map_file = FLAGS_label_map_file;
   const bool check_label = FLAGS_check_label;
@@ -99,16 +102,17 @@ int main(int argc, char** argv) {
   std::vector<std::pair<std::string, boost::variant<int, std::string> > >
       lines2;
   std::string filename;
-  std::string labelname;
-  std::string roiname;
+  std::string labelfile;
+  std::string roifile;
+  type = AnnotatedDatum_AnnotationType_BBOX;
   LabelMap label_map;
   CHECK(ReadProtoFromTextFile(label_map_file, &label_map))
       << "Failed to read label map file.";
   CHECK(MapNameToLabel(label_map, check_label, &name_to_label))
       << "Failed to convert name to label.";
-  while (infile >> filename >> labelname >> roiname) {
-    lines.push_back(std::make_pair(filename, labelname));
-    lines2.push_back(std::make_pair(filename, roiname));
+  while (infile >> filename >> labelfile >> roifile) {
+    lines.push_back(std::make_pair(filename, labelfile));
+    lines2.push_back(std::make_pair(filename, roifile));
   }
 
   if (FLAGS_shuffle) {
@@ -134,7 +138,7 @@ int main(int argc, char** argv) {
   // Storing to db
   std::string root_folder(argv[1]);
   RoIDatum roi_datum;
-  Datum* datum = roi_datum.mutable_datum();
+  Datum* datum = roi_datum.mutable_anno_datum()->mutable_datum();
   int count = 0;
   int data_size = 0;
   bool data_size_initialized = false;
@@ -153,12 +157,13 @@ int main(int argc, char** argv) {
     }
 
     filename = root_folder + lines[line_id].first;
-    labelname = root_folder + boost::get<std::string>(lines[line_id].second);
-    roiname = root_folder + boost::get<std::string>(lines2[line_id].second);
+    labelfile = root_folder + boost::get<std::string>(lines[line_id].second);
+    roifile = root_folder + boost::get<std::string>(lines2[line_id].second);
 
-    status = ReadRichImageToRoIDatum(
-        filename, labelname, roiname, resize_height, resize_width, min_dim,
-        max_dim, is_color, enc, label_type, name_to_label, &roi_datum);
+    status = ReadRichImageToRoIDatum(filename, labelfile, roifile,
+                                     resize_height, resize_width, min_dim,
+                                     max_dim, is_color, enc, type, label_type,
+                                     name_to_label, need_box, &roi_datum);
 
     if (false) {
       // 测试读取

@@ -204,6 +204,10 @@ void GetGroundTruth(const Dtype* gt_data, const int num_gt,
       const int background_label_id, const bool use_difficult_gt,
       map<int, LabelBBox>* all_gt_bboxes);
 
+template <typename Dtype>
+void GetLocRoI(const Dtype* loc_data, const int num, const int num_loc_classes,
+               const bool share_location, vector<LabelBBox>* loc_preds);
+
 // Get location predictions from loc_data.
 //    loc_data: num x num_preds_per_class * num_loc_classes * 4 blob.
 //    num: the number of images.

@@ -23,21 +23,24 @@ class BaseRoIDataLayer : public Layer<Dtype> {
   explicit BaseRoIDataLayer(const LayerParameter& param);
   // LayerSetUp: implements common data layer setup functionality, and calls
   // DataLayerSetUp to do special data layer setup for individual layer types.
-  // This method may not be overridden except by the BasePrefetchingRoIDataLayer.
+  // This method may not be overridden except by the
+  // BasePrefetchingRoIDataLayer.
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+                          const vector<Blob<Dtype>*>& top);
   // Data layers should be shared by multiple solvers in parallel
   virtual inline bool ShareInParallel() const { return true; }
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {}
+                              const vector<Blob<Dtype>*>& top) {}
   // Data layers have no bottoms, so reshaping is trivial.
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {}
+                       const vector<Blob<Dtype>*>& top) {}
 
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {}
+                            const vector<bool>& propagate_down,
+                            const vector<Blob<Dtype>*>& bottom) {}
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {}
+                            const vector<bool>& propagate_down,
+                            const vector<Blob<Dtype>*>& bottom) {}
 
  protected:
   TransformationParameter transform_param_;
@@ -48,27 +51,27 @@ class BaseRoIDataLayer : public Layer<Dtype> {
 template <typename Dtype>
 class Batch {
  public:
-  Blob<Dtype> data_, roi_, label_;
+  Blob<Dtype> data_, roi_, roi_score_, label_, box_;
 };
 
 template <typename Dtype>
-class BasePrefetchingRoIDataLayer :
-    public BaseRoIDataLayer<Dtype>, public InternalThread {
+class BasePrefetchingRoIDataLayer : public BaseRoIDataLayer<Dtype>,
+                                    public InternalThread {
  public:
   explicit BasePrefetchingRoIDataLayer(const LayerParameter& param);
   // LayerSetUp: implements common data layer setup functionality, and calls
   // DataLayerSetUp to do special data layer setup for individual layer types.
   // This method may not be overridden.
   void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+                  const vector<Blob<Dtype>*>& top);
 
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+                           const vector<Blob<Dtype>*>& top);
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+                           const vector<Blob<Dtype>*>& top);
 
   // Prefetches batches (asynchronously if to GPU memory)
-  static const int PREFETCH_COUNT = 3;
+  static const int PREFETCH_COUNT = 10;
 
  protected:
   virtual void InternalThreadEntry();
