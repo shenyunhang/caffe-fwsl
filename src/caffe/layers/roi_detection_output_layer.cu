@@ -12,65 +12,86 @@
 #include "boost/filesystem.hpp"
 #include "boost/foreach.hpp"
 
-#include "caffe/layers/nms_layer.hpp"
+#include "caffe/layers/roi_detection_output_layer.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
-void NMSLayer<Dtype>::Forward_gpu(
+__global__ void GetLocRoIKernel(const int num_roi, const Dtype* roi,
+                                Dtype* roi_permute) {
+  CUDA_KERNEL_LOOP(index, num_roi) {
+    // For each ROI R = [batch_index x1 y1 x2 y2]
+    const int i = index * 5;
+    // For each ROI R = [x1 y1 x2 y2]
+    const int j = index * 4;
+
+    roi_permute[j + 0] = roi[i + 1];
+    roi_permute[j + 1] = roi[i + 2];
+    roi_permute[j + 2] = roi[i + 3];
+    roi_permute[j + 3] = roi[i + 4];
+  }
+}
+
+template <typename Dtype>
+void GetLocRoI(const int num_roi, const Dtype* roi, Dtype* roi_permute) {
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  GetLocRoIKernel<Dtype><<<CAFFE_GET_BLOCKS(num_roi), CAFFE_CUDA_NUM_THREADS>>>(
+      num_roi, roi, roi_permute);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+template <typename Dtype>
+void RoIDetectionOutputLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   const Dtype* loc_data = bottom[0]->gpu_data();
-  const Dtype* prior_data = bottom[2]->gpu_data();
-  const int num = bottom[0]->num();
+  const Dtype* conf_data = bottom[1]->gpu_data();
 
-  // Decode predictions.
-  Dtype* bbox_data = bbox_preds_.mutable_gpu_data();
-  const int loc_count = bbox_preds_.count();
-  const bool clip_bbox = false;
-  DecodeBBoxesGPU<Dtype>(loc_count, loc_data, prior_data, code_type_,
-      variance_encoded_in_target_, num_priors_, share_location_,
-      num_loc_classes_, background_label_id_, clip_bbox, bbox_data);
-  // Retrieve all decoded location predictions.
-  const Dtype* bbox_cpu_data;
-  if (!share_location_) {
-    Dtype* bbox_permute_data = bbox_permute_.mutable_gpu_data();
-    PermuteDataGPU<Dtype>(loc_count, bbox_data, num_loc_classes_, num_priors_,
-        4, bbox_permute_data);
-    bbox_cpu_data = bbox_permute_.cpu_data();
-  } else {
-    bbox_cpu_data = bbox_preds_.cpu_data();
+  const Dtype* num_data = bottom[2]->cpu_data();
+
+  const int num_roi = bottom[0]->num();
+  const int num_img = bottom[2]->count();
+
+  CHECK_EQ(bottom[0]->num(), bottom[2]->asum_data())
+      << "num of roi and sum of index blob must be the same.";
+  for (int i = 0; i < num_img; ++i) {
+    // LOG(INFO)<<"RoI num: "<<num_data[i];
+    CHECK_GT(num_data[i], 0) << "Need at least one RoI per image.";
   }
 
+  // Retrieve all decoded location predictions.
+  GetLocRoI(num_roi, loc_data, bbox_permute_.mutable_gpu_data());
+  const Dtype* bbox_cpu_data = bbox_permute_.cpu_data();
+
   // Retrieve all confidences.
-  Dtype* conf_permute_data = conf_permute_.mutable_gpu_data();
-  PermuteDataGPU<Dtype>(bottom[1]->count(), bottom[1]->gpu_data(),
-      num_classes_, num_priors_, 1, conf_permute_data);
+  PermuteDataGPU<Dtype>(bottom[1]->count(), conf_data, num_classes_, num_roi, 1,
+                        conf_permute_.mutable_gpu_data());
   const Dtype* conf_cpu_data = conf_permute_.cpu_data();
 
   int num_kept = 0;
   vector<map<int, vector<int> > > all_indices;
-  for (int i = 0; i < num; ++i) {
+  for (int i = 0; i < num_img; ++i) {
+    const int num_img_roi = num_data[i];
+    int num_used_roi = 0;
+    for (int ii = 0; ii < i; ++ii) {
+      num_used_roi += num_data[ii];
+    }
+
     map<int, vector<int> > indices;
     int num_det = 0;
-    const int conf_idx = i * num_classes_ * num_priors_;
-    int bbox_idx;
-    if (share_location_) {
-      bbox_idx = i * num_priors_ * 4;
-    } else {
-      bbox_idx = conf_idx * 4;
-    }
+    const int conf_idx = num_classes_ * num_used_roi * 1;
+    const int bbox_idx = num_used_roi * 4;
+
     for (int c = 0; c < num_classes_; ++c) {
       if (c == background_label_id_) {
         // Ignore background class.
         continue;
       }
-      const Dtype* cur_conf_data = conf_cpu_data + conf_idx + c * num_priors_;
+      const Dtype* cur_conf_data = conf_cpu_data + conf_idx + c * num_img_roi;
       const Dtype* cur_bbox_data = bbox_cpu_data + bbox_idx;
-      if (!share_location_) {
-        cur_bbox_data += c * num_priors_ * 4;
-      }
-      ApplyNMSFast(cur_bbox_data, cur_conf_data, num_priors_,
-          confidence_threshold_, nms_threshold_, eta_, top_k_, &(indices[c]));
+
+      ApplyNMSFast(cur_bbox_data, cur_conf_data, num_img_roi,
+                   confidence_threshold_, nms_threshold_, eta_, top_k_,
+                   &(indices[c]));
       num_det += indices[c].size();
     }
     if (keep_top_k_ > -1 && num_det > keep_top_k_) {
@@ -81,9 +102,9 @@ void NMSLayer<Dtype>::Forward_gpu(
         const vector<int>& label_indices = it->second;
         for (int j = 0; j < label_indices.size(); ++j) {
           int idx = label_indices[j];
-          float score = conf_cpu_data[conf_idx + label * num_priors_ + idx];
-          score_index_pairs.push_back(std::make_pair(
-                  score, std::make_pair(label, idx)));
+          float score = conf_cpu_data[conf_idx + label * num_img_roi + idx];
+          score_index_pairs.push_back(
+              std::make_pair(score, std::make_pair(label, idx)));
         }
       }
       // Keep top k results per image.
@@ -111,12 +132,12 @@ void NMSLayer<Dtype>::Forward_gpu(
   Dtype* top_data;
   if (num_kept == 0) {
     LOG(INFO) << "Couldn't find any detections";
-    top_shape[2] = num;
+    top_shape[2] = num_img;
     top[0]->Reshape(top_shape);
     top_data = top[0]->mutable_cpu_data();
     caffe_set<Dtype>(top[0]->count(), -1, top_data);
     // Generate fake results per image.
-    for (int i = 0; i < num; ++i) {
+    for (int i = 0; i < num_img; ++i) {
       top_data[0] = i;
       top_data += 7;
     }
@@ -127,29 +148,29 @@ void NMSLayer<Dtype>::Forward_gpu(
 
   int count = 0;
   boost::filesystem::path output_directory(output_directory_);
-  for (int i = 0; i < num; ++i) {
-    const int conf_idx = i * num_classes_ * num_priors_;
-    int bbox_idx;
-    if (share_location_) {
-      bbox_idx = i * num_priors_ * 4;
-    } else {
-      bbox_idx = conf_idx * 4;
+  for (int i = 0; i < num_img; ++i) {
+    const int num_img_roi = num_data[i];
+    int num_used_roi = 0;
+    for (int ii = 0; ii < i; ++ii) {
+      num_used_roi += num_data[ii];
     }
+
+    const int conf_idx = num_classes_ * num_used_roi * 1;
+    const int bbox_idx = num_used_roi * 4;
+
     for (map<int, vector<int> >::iterator it = all_indices[i].begin();
          it != all_indices[i].end(); ++it) {
       int label = it->first;
       vector<int>& indices = it->second;
       if (need_save_) {
         CHECK(label_to_name_.find(label) != label_to_name_.end())
-          << "Cannot find label: " << label << " in the label map.";
+            << "Cannot find label: " << label << " in the label map.";
         CHECK_LT(name_count_, names_.size());
       }
       const Dtype* cur_conf_data =
-        conf_cpu_data + conf_idx + label * num_priors_;
+          conf_cpu_data + conf_idx + label * num_img_roi;
       const Dtype* cur_bbox_data = bbox_cpu_data + bbox_idx;
-      if (!share_location_) {
-        cur_bbox_data += label * num_priors_ * 4;
-      }
+
       for (int j = 0; j < indices.size(); ++j) {
         int idx = indices[j];
         top_data[count * 7] = i;
@@ -158,6 +179,7 @@ void NMSLayer<Dtype>::Forward_gpu(
         for (int k = 0; k < 4; ++k) {
           top_data[count * 7 + 3 + k] = cur_bbox_data[idx * 4 + k];
         }
+  //LOG(INFO)<<"top_data: "<<top_data[count * 7 + 3 + 0]<<" "<<top_data[count * 7 + 3 + 1]<<" "<<top_data[count * 7 + 3 + 2]<<" "<<top_data[count * 7 + 3 + 3]<<" "  ;
         if (need_save_) {
           // Generate output bbox.
           NormalizedBBox bbox;
@@ -210,13 +232,13 @@ void NMSLayer<Dtype>::Forward_gpu(
               continue;
             }
             string label_name = label_to_name_[c];
-            boost::filesystem::path file(
-                output_name_prefix_ + label_name + ".txt");
+            boost::filesystem::path file(output_name_prefix_ + label_name +
+                                         ".txt");
             boost::filesystem::path out_file = output_directory / file;
             outfiles[label_name] = new std::ofstream(out_file.string().c_str(),
-                std::ofstream::out);
+                                                     std::ofstream::out);
           }
-          BOOST_FOREACH(ptree::value_type &det, detections_.get_child("")) {
+          BOOST_FOREACH (ptree::value_type& det, detections_.get_child("")) {
             ptree pt = det.second;
             string label_name = pt.get<string>("category_id");
             if (outfiles.find(label_name) == outfiles.end()) {
@@ -226,7 +248,7 @@ void NMSLayer<Dtype>::Forward_gpu(
             string image_name = pt.get<string>("image_id");
             float score = pt.get<float>("score");
             vector<int> bbox;
-            BOOST_FOREACH(ptree::value_type &elem, pt.get_child("bbox")) {
+            BOOST_FOREACH (ptree::value_type& elem, pt.get_child("bbox")) {
               bbox.push_back(static_cast<int>(elem.second.get_value<float>()));
             }
             *(outfiles[label_name]) << image_name;
@@ -259,7 +281,8 @@ void NMSLayer<Dtype>::Forward_gpu(
           write_json(ss, output);
           std::string rv = boost::regex_replace(ss.str(), exp, "$1");
           outfile << rv.substr(rv.find("["), rv.rfind("]") - rv.find("["))
-              << std::endl << "]" << std::endl;
+                  << std::endl
+                  << "]" << std::endl;
         } else if (output_format_ == "ILSVRC") {
           boost::filesystem::path output_directory(output_directory_);
           boost::filesystem::path file(output_name_prefix_ + ".txt");
@@ -267,13 +290,13 @@ void NMSLayer<Dtype>::Forward_gpu(
           std::ofstream outfile;
           outfile.open(out_file.string().c_str(), std::ofstream::out);
 
-          BOOST_FOREACH(ptree::value_type &det, detections_.get_child("")) {
+          BOOST_FOREACH (ptree::value_type& det, detections_.get_child("")) {
             ptree pt = det.second;
             int label = pt.get<int>("category_id");
             string image_name = pt.get<string>("image_id");
             float score = pt.get<float>("score");
             vector<int> bbox;
-            BOOST_FOREACH(ptree::value_type &elem, pt.get_child("bbox")) {
+            BOOST_FOREACH (ptree::value_type& elem, pt.get_child("bbox")) {
               bbox.push_back(static_cast<int>(elem.second.get_value<float>()));
             }
             outfile << image_name << " " << label << " " << score;
@@ -294,11 +317,11 @@ void NMSLayer<Dtype>::Forward_gpu(
     this->data_transformer_->TransformInv(bottom[3], &cv_imgs);
     vector<cv::Scalar> colors = GetColors(label_to_display_name_.size());
     VisualizeBBox(cv_imgs, top[0], visualize_threshold_, colors,
-        label_to_display_name_, save_file_);
+                  label_to_display_name_, save_file_);
 #endif  // USE_OPENCV
   }
 }
 
-INSTANTIATE_LAYER_GPU_FUNCS(NMSLayer);
+INSTANTIATE_LAYER_GPU_FUNCS(RoIDetectionOutputLayer);
 
 }  // namespace caffe

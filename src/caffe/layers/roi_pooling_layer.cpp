@@ -24,8 +24,6 @@ void ROIPoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   CHECK_GT(roi_pool_param.pooled_w(), 0) << "pooled_w must be > 0";
   pooled_height_ = roi_pool_param.pooled_h();
   pooled_width_ = roi_pool_param.pooled_w();
-  spatial_scale_ = roi_pool_param.spatial_scale();
-  LOG(INFO) << "Spatial scale: " << spatial_scale_;
 }
 
 template <typename Dtype>
@@ -55,10 +53,10 @@ void ROIPoolingLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
   for (int n = 0; n < num_rois; ++n) {
     int roi_batch_ind = bottom_rois[0];
-    int roi_start_w = round(bottom_rois[1] * spatial_scale_);
-    int roi_start_h = round(bottom_rois[2] * spatial_scale_);
-    int roi_end_w = round(bottom_rois[3] * spatial_scale_);
-    int roi_end_h = round(bottom_rois[4] * spatial_scale_);
+    int roi_start_w = round(bottom_rois[1] * width_);
+    int roi_start_h = round(bottom_rois[2] * height_);
+    int roi_end_w = round(bottom_rois[3] * width_);
+    int roi_end_h = round(bottom_rois[4] * height_);
     CHECK_GE(roi_batch_ind, 0);
     CHECK_LT(roi_batch_ind, batch_size);
 

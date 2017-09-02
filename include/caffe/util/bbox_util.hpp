@@ -65,6 +65,10 @@ float BBoxSize(const NormalizedBBox& bbox, const bool normalized = true);
 template <typename Dtype>
 Dtype BBoxSize(const Dtype* bbox, const bool normalized = true);
 
+template <typename Dtype>
+Dtype BBoxSize(const Dtype xmin, const Dtype ymin, const Dtype xmax,
+               const Dtype ymax);
+
 // Clip the NormalizedBBox such that the range for each corner is [0, 1].
 void ClipBBox(const NormalizedBBox& bbox, NormalizedBBox* clip_bbox);
 
@@ -206,6 +210,7 @@ void GetGroundTruth(const Dtype* gt_data, const int num_gt,
 
 template <typename Dtype>
 void GetLocRoI(const Dtype* loc_data, const int num, const int num_loc_classes,
+               const Dtype* num_data, const int num_img,
                const bool share_location, vector<LabelBBox>* loc_preds);
 
 // Get location predictions from loc_data.
@@ -254,6 +259,11 @@ void ComputeLocLoss(const Blob<Dtype>& loc_pred, const Blob<Dtype>& loc_gt,
       const vector<map<int, vector<int> > >& all_match_indices,
       const int num, const int num_priors, const LocLossType loc_loss_type,
       vector<vector<float> >* all_loc_loss);
+
+template <typename Dtype>
+void GetRoIScores(const Dtype* conf_data, const int num_img,
+                  const int num_classes, const Dtype* num_data,
+                  vector<map<int, vector<float> > >* conf_scores);
 
 // Get confidence predictions from conf_data.
 //    conf_data: num x num_preds_per_class * num_classes blob.

@@ -1,5 +1,5 @@
-#ifndef CAFFE_NMS_LAYER_HPP_
-#define CAFFE_NMS_LAYER_HPP_
+#ifndef CAFFE_ROI_DETECTION_OUTPUT_LAYER_HPP_
+#define CAFFE_ROI_DETECTION_OUTPUT_LAYER_HPP_
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -29,19 +29,19 @@ namespace caffe {
  * NOTE: does not implement Backwards operation.
  */
 template <typename Dtype>
-class NMSLayer : public Layer<Dtype> {
+class RoIDetectionOutputLayer : public Layer<Dtype> {
  public:
-  explicit NMSLayer(const LayerParameter& param)
+  explicit RoIDetectionOutputLayer(const LayerParameter& param)
       : Layer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "NMS"; }
+  virtual inline const char* type() const { return "RoIDetectionOutput"; }
   //virtual inline int MinBottomBlobs() const { return 3; }
   //virtual inline int MaxBottomBlobs() const { return 4; }
-  virtual inline int ExactBottomBlobs() const { return 2; }
+  virtual inline int ExactBottomBlobs() const { return 4; }
   virtual inline int ExactNumTopBlobs() const { return 1; }
 
  protected:
@@ -107,11 +107,10 @@ class NMSLayer : public Layer<Dtype> {
   float visualize_threshold_;
   shared_ptr<DataTransformer<Dtype> > data_transformer_;
   string save_file_;
-  Blob<Dtype> bbox_preds_;
   Blob<Dtype> bbox_permute_;
   Blob<Dtype> conf_permute_;
 };
 
 }  // namespace caffe
 
-#endif  // CAFFE_NMS_LAYER_HPP_
+#endif  // CAFFE_ROI_DETECTION_OUTPUT_LAYER_HPP_

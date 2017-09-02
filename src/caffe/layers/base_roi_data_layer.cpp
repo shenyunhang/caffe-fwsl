@@ -18,13 +18,6 @@ BaseRoIDataLayer<Dtype>::BaseRoIDataLayer(const LayerParameter& param)
 template <typename Dtype>
 void BaseRoIDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                                          const vector<Blob<Dtype>*>& top) {
-  if (top.size() == 4) {
-    output_labels_ = false;
-  } else {
-    output_labels_ = true;
-  }
-  // TODO(YH): we set output_labels_ false currently
-  output_labels_ = false;
   data_transformer_.reset(
       new DataTransformer<Dtype>(transform_param_, this->phase_));
   data_transformer_->InitRand();
@@ -39,6 +32,7 @@ BasePrefetchingRoIDataLayer<Dtype>::BasePrefetchingRoIDataLayer(
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
     prefetch_free_.push(&prefetch_[i]);
   }
+  count_img = 0;
 }
 
 template <typename Dtype>
@@ -53,10 +47,9 @@ void BasePrefetchingRoIDataLayer<Dtype>::LayerSetUp(
     prefetch_[i].data_.mutable_cpu_data();
     prefetch_[i].roi_.mutable_cpu_data();
     prefetch_[i].roi_score_.mutable_cpu_data();
+    prefetch_[i].roi_num_.mutable_cpu_data();
     prefetch_[i].label_.mutable_cpu_data();
-    if (this->output_labels_) {
-      prefetch_[i].box_.mutable_cpu_data();
-    }
+    prefetch_[i].box_.mutable_cpu_data();
   }
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
@@ -64,10 +57,9 @@ void BasePrefetchingRoIDataLayer<Dtype>::LayerSetUp(
       prefetch_[i].data_.mutable_gpu_data();
       prefetch_[i].roi_.mutable_gpu_data();
       prefetch_[i].roi_score_.mutable_gpu_data();
+      prefetch_[i].roi_num_.mutable_gpu_data();
       prefetch_[i].label_.mutable_gpu_data();
-      if (this->output_labels_) {
-        prefetch_[i].box_.mutable_gpu_data();
-      }
+      prefetch_[i].box_.mutable_gpu_data();
     }
   }
 #endif
@@ -75,6 +67,7 @@ void BasePrefetchingRoIDataLayer<Dtype>::LayerSetUp(
   this->data_transformer_->InitRand();
   StartInternalThread();
   DLOG(INFO) << "Prefetch initialized.";
+
 }
 
 template <typename Dtype>
@@ -132,20 +125,25 @@ void BasePrefetchingRoIDataLayer<Dtype>::Forward_cpu(
   caffe_copy(batch->roi_score_.count(), batch->roi_score_.cpu_data(),
              top[2]->mutable_cpu_data());
 
-  // Reshape to loaded label.
-  top[3]->ReshapeLike(batch->label_);
-  // Copy the label.
-  caffe_copy(batch->label_.count(), batch->label_.cpu_data(),
+  // Reshape to loaded roi_num.
+  top[3]->ReshapeLike(batch->roi_num_);
+  // Copy the roi_num.
+  caffe_copy(batch->roi_num_.count(), batch->roi_num_.cpu_data(),
              top[3]->mutable_cpu_data());
 
+  // Reshape to loaded label.
+  top[4]->ReshapeLike(batch->label_);
+  // Copy the label.
+  caffe_copy(batch->label_.count(), batch->label_.cpu_data(),
+             top[4]->mutable_cpu_data());
+
+  // Reshape to loaded box.
+  top[5]->ReshapeLike(batch->box_);
+  // Copy the box.
+  caffe_copy(batch->box_.count(), batch->box_.cpu_data(),
+             top[5]->mutable_cpu_data());
+
   DLOG(INFO) << "Prefetch copied";
-  if (this->output_labels_) {
-    // Reshape to loaded box.
-    top[4]->ReshapeLike(batch->box_);
-    // Copy the box.
-    caffe_copy(batch->box_.count(), batch->box_.cpu_data(),
-               top[4]->mutable_cpu_data());
-  }
 
   prefetch_free_.push(batch);
 }

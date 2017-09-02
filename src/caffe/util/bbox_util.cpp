@@ -119,6 +119,24 @@ Dtype BBoxSize(const Dtype* bbox, const bool normalized) {
 template float BBoxSize(const float* bbox, const bool normalized);
 template double BBoxSize(const double* bbox, const bool normalized);
 
+template <typename Dtype>
+Dtype BBoxSize(const Dtype xmin, const Dtype ymin, const Dtype xmax,
+               const Dtype ymax) {
+  if (xmax < xmin || ymax < ymin) {
+    // If bbox is invalid (e.g. xmax < xmin or ymax < ymin), return 0.
+    return 0;
+  } else {
+    const Dtype width = xmax - xmin;
+    const Dtype height = ymax - ymin;
+    return width * height;
+  }
+}
+
+template float BBoxSize(const float xmin, const float ymin, const float xmax,
+                        const float ymax);
+template double BBoxSize(const double xmin, const double ymin,
+                         const double xmax, const double ymax);
+
 void ClipBBox(const NormalizedBBox& bbox, NormalizedBBox* clip_bbox) {
   clip_bbox->set_xmin(std::max(std::min(bbox.xmin(), 1.f), 0.f));
   clip_bbox->set_ymin(std::max(std::min(bbox.ymin(), 1.f), 0.f));
@@ -1132,81 +1150,58 @@ template void GetGroundTruth(const double* gt_data, const int num_gt,
                              map<int, LabelBBox>* all_gt_bboxes);
 
 template <typename Dtype>
-void GetLocRoI(const Dtype* loc_data, const int num, const int num_loc_classes,
-               const bool share_location, vector<LabelBBox>* loc_preds) {
+void GetLocRoI(const Dtype* loc_data, const int num_roi,
+               const int num_loc_classes, const Dtype* num_data,
+               const int num_img, const bool share_location,
+               vector<LabelBBox>* loc_preds) {
   loc_preds->clear();
   if (share_location) {
     CHECK_EQ(num_loc_classes, 1);
   }
+  loc_preds->resize(num_img);
 
-  int img_idx = -1;
-  int img_roi_num = -1;
+  int idx_img = 0;
+  int idx_img_roi = 0;
+  for (int i = 0; i < num_roi; ++i) {
+    if (idx_img_roi == num_data[idx_img]) {
+      idx_img++;
+      idx_img_roi = 0;
+      CHECK_EQ(idx_img, loc_data[0])
+          << "idx_img should increase one by one in RoI blob.";
+    }
 
-  int img_num = 0;
-  std::vector<Dtype> roi_num_vec;
-  for (int i = 0; i < num; ++i) {
     // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
-    if (img_idx == loc_data[i * 5]) {
-      img_roi_num++;
-    } else {
-      CHECK_EQ(img_idx + 1, loc_data[i * 5])
-          << "img_idx should increase one by one in RoI blob.";
-      if (img_idx >= 0 && img_roi_num > 0) {
-        img_num++;
-        roi_num_vec.push_back(img_roi_num);
-      }
-      img_idx = loc_data[5];
-      img_roi_num = 1;
-    }
-    if (i + 1 == num) {
-      if (img_idx >= 0 && img_roi_num > 0) {
-        img_num++;
-        roi_num_vec.push_back(img_roi_num);
-      }
-    }
-  }
-  loc_preds->resize(img_num);
-
-  img_idx = -1;
-  int img_roi_idx = -1;
-  for (int i = 0; i < num; ++i) {
-    // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
-    if (img_idx == loc_data[0]) {
-      img_roi_idx++;
-    } else {
-      CHECK_EQ(img_idx + 1, loc_data[0])
-          << "img_idx should increase one by one in RoI blob.";
-      img_idx = loc_data[0];
-      img_roi_idx = 0;
-    }
     Dtype xmin = loc_data[1];
     Dtype ymin = loc_data[2];
     Dtype xmax = loc_data[3];
     Dtype ymax = loc_data[4];
 
-    LabelBBox& label_bbox = (*loc_preds)[img_idx];
+    LabelBBox& label_bbox = (*loc_preds)[idx_img];
 
     for (int c = 0; c < num_loc_classes; ++c) {
       int label = share_location ? -1 : c;
       if (label_bbox.find(label) == label_bbox.end()) {
-        label_bbox[label].resize(roi_num_vec[img_idx]);
+        label_bbox[label].resize(num_data[idx_img]);
       }
-      label_bbox[label][img_roi_idx].set_xmin(xmin);
-      label_bbox[label][img_roi_idx].set_ymin(ymin);
-      label_bbox[label][img_roi_idx].set_xmax(xmax);
-      label_bbox[label][img_roi_idx].set_ymax(ymax);
+      label_bbox[label][idx_img_roi].set_xmin(xmin);
+      label_bbox[label][idx_img_roi].set_ymin(ymin);
+      label_bbox[label][idx_img_roi].set_xmax(xmax);
+      label_bbox[label][idx_img_roi].set_ymax(ymax);
     }
 
     loc_data += 5;
+    idx_img_roi++;
   }
 }
 
 // Explicit initialization.
 template void GetLocRoI(const float* loc_data, const int num,
-                        const int num_loc_classes, const bool share_location,
+                        const int num_loc_classes, const float* num_data,
+                        const int num_img, const bool share_location,
                         vector<LabelBBox>* loc_preds);
 template void GetLocRoI(const double* loc_data, const int num,
-                        const int num_loc_classes, const bool share_location,
+                        const int num_loc_classes, const double* num_data,
+                        const int num_img, const bool share_location,
                         vector<LabelBBox>* loc_preds);
 
 template <typename Dtype>
@@ -1410,6 +1405,32 @@ template void ComputeLocLoss(const Blob<double>& loc_pred,
       const vector<map<int, vector<int> > >& all_match_indices,
       const int num, const int num_priors, const LocLossType loc_loss_type,
       vector<vector<float> >* all_loc_loss);
+
+template <typename Dtype>
+void GetRoIScores(const Dtype* conf_data, const int num_img,
+                  const int num_classes, const Dtype* num_data,
+                  vector<map<int, vector<float> > >* conf_preds) {
+  conf_preds->clear();
+  conf_preds->resize(num_img);
+  for (int i = 0; i < num_img; ++i) {
+    map<int, vector<float> >& label_scores = (*conf_preds)[i];
+    for (int p = 0; p < num_data[i]; ++p) {
+      int start_idx = p * num_classes;
+      for (int c = 0; c < num_classes; ++c) {
+        label_scores[c].push_back(conf_data[start_idx + c]);
+      }
+    }
+    conf_data += int(num_data[i]) * num_classes;
+  }
+}
+
+// Explicit initialization.
+template void GetRoIScores(const float* conf_data, const int num_img,
+                           const int num_classes, const float* num_data,
+                           vector<map<int, vector<float> > >* conf_preds);
+template void GetRoIScores(const double* conf_data, const int num_img,
+                           const int num_classes, const double* num_data,
+                           vector<map<int, vector<float> > >* conf_preds);
 
 template <typename Dtype>
 void GetConfidenceScores(const Dtype* conf_data, const int num,

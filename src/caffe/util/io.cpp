@@ -274,7 +274,7 @@ bool ReadRichImageToRoIDatum(const string &filename, const string &labelfile,
     return false;
   }
 
-  status = ReadTxtToRoIDatum(roifile, ori_height, ori_width, roi_datum);
+  status = ReadRoITxtToRoIDatum(roifile, ori_height, ori_width, roi_datum);
   if (status == false) {
     return false;
   }
@@ -638,7 +638,7 @@ bool ReadTxtToAnnotatedDatum(const string& labelfile, const int height,
   return true;
 }
 
-bool ReadTxtToRoIDatum(const string &roifile, const int height, const int width,
+bool ReadRoITxtToRoIDatum(const string &roifile, const int height, const int width,
                        RoIDatum *roi_datum) {
   std::ifstream infile(roifile.c_str());
   if (!infile.good()) {
@@ -649,7 +649,6 @@ bool ReadTxtToRoIDatum(const string &roifile, const int height, const int width,
   float score;
   int num_roi = 0;
   while (infile >> xmin >> ymin >> xmax >> ymax >> score) {
-
     LOG_IF(WARNING, xmin > width) << roifile
                                   << " bounding box exceeds image boundary.";
     LOG_IF(WARNING, ymin > height) << roifile

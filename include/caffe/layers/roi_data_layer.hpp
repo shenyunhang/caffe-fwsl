@@ -22,12 +22,12 @@ class RoIDataLayer : public BasePrefetchingRoIDataLayer<Dtype> {
   explicit RoIDataLayer(const LayerParameter& param);
   virtual ~RoIDataLayer();
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
+                              const vector<Blob<Dtype>*>& top);
   // RoIDataLayer uses DataReader instead for sharing for parallelism
   virtual inline bool ShareInParallel() const { return false; }
   virtual inline const char* type() const { return "RoIData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
-  virtual inline int MinTopBlobs() const { return 4; }
+  virtual inline int MinTopBlobs() const { return 5; }
 
  protected:
   virtual void load_batch(Batch<Dtype>* batch);
@@ -38,8 +38,9 @@ class RoIDataLayer : public BasePrefetchingRoIDataLayer<Dtype> {
   vector<BatchSampler> batch_samplers_;
   string label_map_file_;
 
-    int max_roi_per_im_;
-    int num_class_;
+  int max_roi_per_im_;
+  int num_class_;
+  bool visualize_;
 };
 
 }  // namespace caffe

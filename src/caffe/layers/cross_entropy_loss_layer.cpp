@@ -42,6 +42,8 @@ void CrossEntropyLossLayer<Dtype>::Forward_cpu(
 
   Dtype loss = 0;
   for (int i = 0; i < count_; ++i) {
+    //LOG(INFO) << "i: " << i << " input_data[i]: " << input_data[i]
+              //<< " target: " << target[i];
     if (target[i] == ignore_value_) {
       accum_ignore_num_++;
       continue;

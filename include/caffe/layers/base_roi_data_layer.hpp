@@ -45,13 +45,12 @@ class BaseRoIDataLayer : public Layer<Dtype> {
  protected:
   TransformationParameter transform_param_;
   shared_ptr<DataTransformer<Dtype> > data_transformer_;
-  bool output_labels_;
 };
 
 template <typename Dtype>
 class Batch {
  public:
-  Blob<Dtype> data_, roi_, roi_score_, label_, box_;
+  Blob<Dtype> data_, roi_, roi_score_, roi_num_, label_, box_;
 };
 
 template <typename Dtype>
@@ -82,6 +81,8 @@ class BasePrefetchingRoIDataLayer : public BaseRoIDataLayer<Dtype>,
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
 
   Blob<Dtype> transformed_data_;
+
+  int count_img;
 };
 
 }  // namespace caffe

@@ -8,42 +8,45 @@
 #include "boost/filesystem.hpp"
 #include "boost/foreach.hpp"
 
-#include "caffe/layers/nms_layer.hpp"
+#include "caffe/layers/roi_detection_output_layer.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
-void NMSLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
-  const NMSParameter& nms_param =
-      this->layer_param_.nms_param();
-  CHECK(nms_param.has_num_classes()) << "Must specify num_classes";
-  num_classes_ = nms_param.num_classes();
-  share_location_ = nms_param.share_location();
+void RoIDetectionOutputLayer<Dtype>::LayerSetUp(
+    const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  const RoIDetectionOutputParameter& roi_detection_output_param =
+      this->layer_param_.roi_detection_output_param();
+  CHECK(roi_detection_output_param.has_num_classes())
+      << "Must specify num_classes";
+  num_classes_ = roi_detection_output_param.num_classes();
+  share_location_ = roi_detection_output_param.share_location();
   num_loc_classes_ = share_location_ ? 1 : num_classes_;
-  background_label_id_ = nms_param.background_label_id();
-  keep_top_k_ = nms_param.keep_top_k();
-  confidence_threshold_ = nms_param.has_confidence_threshold() ?
-      nms_param.confidence_threshold() : -FLT_MAX;
+  background_label_id_ = roi_detection_output_param.background_label_id();
+  keep_top_k_ = roi_detection_output_param.keep_top_k();
+  confidence_threshold_ =
+      roi_detection_output_param.has_confidence_threshold()
+          ? roi_detection_output_param.confidence_threshold()
+          : -FLT_MAX;
   // Parameters used in nms.
-  nms_threshold_ = nms_param.nms_param().nms_threshold();
+  nms_threshold_ = roi_detection_output_param.nms_param().nms_threshold();
   CHECK_GE(nms_threshold_, 0.) << "nms_threshold must be non negative.";
-  eta_ = nms_param.nms_param().eta();
+  eta_ = roi_detection_output_param.nms_param().eta();
   CHECK_GT(eta_, 0.);
   CHECK_LE(eta_, 1.);
   top_k_ = -1;
-  if (nms_param.nms_param().has_top_k()) {
-    top_k_ = nms_param.nms_param().top_k();
+  if (roi_detection_output_param.nms_param().has_top_k()) {
+    top_k_ = roi_detection_output_param.nms_param().top_k();
   }
   const SaveOutputParameter& save_output_param =
-      nms_param.save_output_param();
+      roi_detection_output_param.save_output_param();
   output_directory_ = save_output_param.output_directory();
   if (!output_directory_.empty()) {
     if (boost::filesystem::is_directory(output_directory_)) {
       boost::filesystem::remove_all(output_directory_);
     }
     if (!boost::filesystem::create_directories(output_directory_)) {
-        LOG(WARNING) << "Failed to create directory: " << output_directory_;
+      LOG(WARNING) << "Failed to create directory: " << output_directory_;
     }
   }
   output_name_prefix_ = save_output_param.output_name_prefix();
@@ -75,8 +78,8 @@ void NMSLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       need_save_ = false;
     } else {
       std::ifstream infile(name_size_file.c_str());
-      CHECK(infile.good())
-          << "Failed to open name size file: " << name_size_file;
+      CHECK(infile.good()) << "Failed to open name size file: "
+                           << name_size_file;
       // The file is in the following format:
       //    name height width
       //    ...
@@ -102,28 +105,22 @@ void NMSLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     resize_param_ = save_output_param.resize_param();
   }
   name_count_ = 0;
-  visualize_ = nms_param.visualize();
+  visualize_ = roi_detection_output_param.visualize();
   if (visualize_) {
     visualize_threshold_ = 0.6;
-    if (nms_param.has_visualize_threshold()) {
-      visualize_threshold_ = nms_param.visualize_threshold();
+    if (roi_detection_output_param.has_visualize_threshold()) {
+      visualize_threshold_ = roi_detection_output_param.visualize_threshold();
     }
-    data_transformer_.reset(
-        new DataTransformer<Dtype>(this->layer_param_.transform_param(),
-                                   this->phase_));
+    data_transformer_.reset(new DataTransformer<Dtype>(
+        this->layer_param_.transform_param(), this->phase_));
     data_transformer_->InitRand();
-    save_file_ = nms_param.save_file();
+    save_file_ = roi_detection_output_param.save_file();
   }
-  bbox_preds_.ReshapeLike(*(bottom[0]));
-  if (!share_location_) {
-    bbox_permute_.ReshapeLike(*(bottom[0]));
-  }
-  conf_permute_.ReshapeLike(*(bottom[1]));
 }
 
 template <typename Dtype>
-void NMSLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
+void RoIDetectionOutputLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
+                                             const vector<Blob<Dtype>*>& top) {
   if (need_save_) {
     CHECK_LE(name_count_, names_.size());
     if (name_count_ % num_test_image_ == 0) {
@@ -136,27 +133,23 @@ void NMSLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
             continue;
           }
           std::ofstream outfile;
-          boost::filesystem::path file(
-              output_name_prefix_ + it->second + ".txt");
+          boost::filesystem::path file(output_name_prefix_ + it->second +
+                                       ".txt");
           boost::filesystem::path out_file = output_directory / file;
           outfile.open(out_file.string().c_str(), std::ofstream::out);
         }
       }
     }
   }
-  CHECK_EQ(bottom[0]->num(), bottom[1]->num());
-  if (bbox_preds_.num() != bottom[0]->num() ||
-      bbox_preds_.count(1) != bottom[0]->count(1)) {
-    bbox_preds_.ReshapeLike(*(bottom[0]));
-  }
-  if (!share_location_ && (bbox_permute_.num() != bottom[0]->num() ||
-      bbox_permute_.count(1) != bottom[0]->count(1))) {
-    bbox_permute_.ReshapeLike(*(bottom[0]));
-  }
-  if (conf_permute_.num() != bottom[1]->num() ||
-      conf_permute_.count(1) != bottom[1]->count(1)) {
-    conf_permute_.ReshapeLike(*(bottom[1]));
-  }
+
+  vector<int> bbox_permute_shape = bottom[0]->shape();
+  bbox_permute_shape[1] = 4;
+  bbox_permute_.Reshape(bbox_permute_shape);
+  conf_permute_.ReshapeLike(*(bottom[1]));
+
+  CHECK_EQ(bottom[0]->num(), bottom[1]->num())
+      << "Number of roi must match number of confidence predictions.";
+
   // num() and channels() are 1.
   vector<int> top_shape(2, 1);
   // Since the number of bboxes to be kept is unknown before nms, we manually
@@ -169,45 +162,51 @@ void NMSLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 }
 
 template <typename Dtype>
-void NMSLayer<Dtype>::Forward_cpu(
+void RoIDetectionOutputLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   const Dtype* loc_data = bottom[0]->cpu_data();
   const Dtype* conf_data = bottom[1]->cpu_data();
-  const Dtype* prior_data = bottom[2]->cpu_data();
-  const int num = bottom[0]->num();
+  const Dtype* num_data = bottom[2]->cpu_data();
+  const int num_roi = bottom[0]->num();
+  const int num_img = bottom[2]->count();
+
+  LOG(INFO) << "bottom[0]: " << bottom[0]->num() << " " << bottom[0]->channels()
+            << " " << bottom[0]->height() << " " << bottom[0]->width();
+  LOG(INFO) << "bottom[1]: " << bottom[1]->num() << " " << bottom[1]->channels()
+            << " " << bottom[1]->height() << " " << bottom[1]->width();
+  LOG(INFO) << "bottom[2]: " << bottom[2]->num() << " " << bottom[2]->channels()
+            << " " << bottom[2]->height() << " " << bottom[2]->width()
+            << " num_data[0]: " << num_data[0];
+
+  CHECK_EQ(bottom[0]->num(), bottom[2]->asum_data())
+      << "num of roi and sum of index blob must be the same.";
+  for (int i = 0; i < num_img; ++i) {
+    // LOG(INFO)<<"RoI num: "<<num_data[i];
+    CHECK_GT(num_data[i], 0) << "Need at least one RoI per image.";
+  }
 
   // Retrieve all location predictions.
   vector<LabelBBox> all_loc_preds;
-  GetLocRoI(loc_data, num, num_loc_classes_,
-                    share_location_, &all_loc_preds);
-
-  // Retrieve all location predictions.
-  //vector<LabelBBox> all_loc_preds;
-  //GetLocPredictions(loc_data, num, num_priors_, num_loc_classes_,
-                    //share_location_, &all_loc_preds);
+  GetLocRoI(loc_data, num_roi, num_loc_classes_, num_data, num_img,
+            share_location_, &all_loc_preds);
 
   // Retrieve all confidences.
   vector<map<int, vector<float> > > all_conf_scores;
-  GetConfidenceScores(conf_data, num, num_priors_, num_classes_,
-                      &all_conf_scores);
-
-  // Retrieve all prior bboxes. It is same within a batch since we assume all
-  // images in a batch are of same dimension.
-  vector<NormalizedBBox> prior_bboxes;
-  vector<vector<float> > prior_variances;
-  GetPriorBBoxes(prior_data, num_priors_, &prior_bboxes, &prior_variances);
+  GetRoIScores(conf_data, num_img, num_classes_, num_data, &all_conf_scores);
 
   // Decode all loc predictions to bboxes.
-  vector<LabelBBox> all_decode_bboxes;
-  const bool clip_bbox = false;
-  DecodeBBoxesAll(all_loc_preds, prior_bboxes, prior_variances, num,
-                  share_location_, num_loc_classes_, background_label_id_,
-                  code_type_, variance_encoded_in_target_, clip_bbox,
-                  &all_decode_bboxes);
+  vector<LabelBBox> all_decode_bboxes = all_loc_preds;
+
+  LOG(INFO) << "all_conf_scores: " << all_conf_scores.size();
+  LOG(INFO) << "all_conf_scores[0]: " << all_conf_scores[0].size();
+  LOG(INFO) << "all_conf_scores[0][0]: " << all_conf_scores[0][0].size();
+  LOG(INFO) << "all_decode_bboxes: " << all_decode_bboxes.size();
+  LOG(INFO) << "all_decode_bboxes[0]: " << all_decode_bboxes[0].size();
+  LOG(INFO) << "all_decode_bboxes[0][0]: " << all_decode_bboxes[0][-1].size();
 
   int num_kept = 0;
   vector<map<int, vector<int> > > all_indices;
-  for (int i = 0; i < num; ++i) {
+  for (int i = 0; i < num_img; ++i) {
     const LabelBBox& decode_bboxes = all_decode_bboxes[i];
     const map<int, vector<float> >& conf_scores = all_conf_scores[i];
     map<int, vector<int> > indices;
@@ -230,9 +229,12 @@ void NMSLayer<Dtype>::Forward_cpu(
       }
       const vector<NormalizedBBox>& bboxes = decode_bboxes.find(label)->second;
       ApplyNMSFast(bboxes, scores, confidence_threshold_, nms_threshold_, eta_,
-          top_k_, &(indices[c]));
+                   top_k_, &(indices[c]));
       num_det += indices[c].size();
+      // LOG(INFO) << "indices: " << indices.size();
+      // LOG(INFO) << "indices[c]: " << indices[c].size();
     }
+
     if (keep_top_k_ > -1 && num_det > keep_top_k_) {
       vector<pair<float, pair<int, int> > > score_index_pairs;
       for (map<int, vector<int> >::iterator it = indices.begin();
@@ -248,8 +250,8 @@ void NMSLayer<Dtype>::Forward_cpu(
         for (int j = 0; j < label_indices.size(); ++j) {
           int idx = label_indices[j];
           CHECK_LT(idx, scores.size());
-          score_index_pairs.push_back(std::make_pair(
-                  scores[idx], std::make_pair(label, idx)));
+          score_index_pairs.push_back(
+              std::make_pair(scores[idx], std::make_pair(label, idx)));
         }
       }
       // Keep top k results per image.
@@ -277,12 +279,12 @@ void NMSLayer<Dtype>::Forward_cpu(
   Dtype* top_data;
   if (num_kept == 0) {
     LOG(INFO) << "Couldn't find any detections";
-    top_shape[2] = num;
+    top_shape[2] = num_img;
     top[0]->Reshape(top_shape);
     top_data = top[0]->mutable_cpu_data();
     caffe_set<Dtype>(top[0]->count(), -1, top_data);
     // Generate fake results per image.
-    for (int i = 0; i < num; ++i) {
+    for (int i = 0; i < num_img; ++i) {
       top_data[0] = i;
       top_data += 7;
     }
@@ -293,7 +295,7 @@ void NMSLayer<Dtype>::Forward_cpu(
 
   int count = 0;
   boost::filesystem::path output_directory(output_directory_);
-  for (int i = 0; i < num; ++i) {
+  for (int i = 0; i < num_img; ++i) {
     const map<int, vector<float> >& conf_scores = all_conf_scores[i];
     const LabelBBox& decode_bboxes = all_decode_bboxes[i];
     for (map<int, vector<int> >::iterator it = all_indices[i].begin();
@@ -316,7 +318,7 @@ void NMSLayer<Dtype>::Forward_cpu(
       vector<int>& indices = it->second;
       if (need_save_) {
         CHECK(label_to_name_.find(label) != label_to_name_.end())
-          << "Cannot find label: " << label << " in the label map.";
+            << "Cannot find label: " << label << " in the label map.";
         CHECK_LT(name_count_, names_.size());
       }
       for (int j = 0; j < indices.size(); ++j) {
@@ -375,13 +377,13 @@ void NMSLayer<Dtype>::Forward_cpu(
               continue;
             }
             string label_name = label_to_name_[c];
-            boost::filesystem::path file(
-                output_name_prefix_ + label_name + ".txt");
+            boost::filesystem::path file(output_name_prefix_ + label_name +
+                                         ".txt");
             boost::filesystem::path out_file = output_directory / file;
             outfiles[label_name] = new std::ofstream(out_file.string().c_str(),
-                std::ofstream::out);
+                                                     std::ofstream::out);
           }
-          BOOST_FOREACH(ptree::value_type &det, detections_.get_child("")) {
+          BOOST_FOREACH (ptree::value_type& det, detections_.get_child("")) {
             ptree pt = det.second;
             string label_name = pt.get<string>("category_id");
             if (outfiles.find(label_name) == outfiles.end()) {
@@ -391,7 +393,7 @@ void NMSLayer<Dtype>::Forward_cpu(
             string image_name = pt.get<string>("image_id");
             float score = pt.get<float>("score");
             vector<int> bbox;
-            BOOST_FOREACH(ptree::value_type &elem, pt.get_child("bbox")) {
+            BOOST_FOREACH (ptree::value_type& elem, pt.get_child("bbox")) {
               bbox.push_back(static_cast<int>(elem.second.get_value<float>()));
             }
             *(outfiles[label_name]) << image_name;
@@ -424,7 +426,8 @@ void NMSLayer<Dtype>::Forward_cpu(
           write_json(ss, output);
           std::string rv = boost::regex_replace(ss.str(), exp, "$1");
           outfile << rv.substr(rv.find("["), rv.rfind("]") - rv.find("["))
-              << std::endl << "]" << std::endl;
+                  << std::endl
+                  << "]" << std::endl;
         } else if (output_format_ == "ILSVRC") {
           boost::filesystem::path output_directory(output_directory_);
           boost::filesystem::path file(output_name_prefix_ + ".txt");
@@ -432,13 +435,13 @@ void NMSLayer<Dtype>::Forward_cpu(
           std::ofstream outfile;
           outfile.open(out_file.string().c_str(), std::ofstream::out);
 
-          BOOST_FOREACH(ptree::value_type &det, detections_.get_child("")) {
+          BOOST_FOREACH (ptree::value_type& det, detections_.get_child("")) {
             ptree pt = det.second;
             int label = pt.get<int>("category_id");
             string image_name = pt.get<string>("image_id");
             float score = pt.get<float>("score");
             vector<int> bbox;
-            BOOST_FOREACH(ptree::value_type &elem, pt.get_child("bbox")) {
+            BOOST_FOREACH (ptree::value_type& elem, pt.get_child("bbox")) {
               bbox.push_back(static_cast<int>(elem.second.get_value<float>()));
             }
             outfile << image_name << " " << label << " " << score;
@@ -459,16 +462,16 @@ void NMSLayer<Dtype>::Forward_cpu(
     this->data_transformer_->TransformInv(bottom[3], &cv_imgs);
     vector<cv::Scalar> colors = GetColors(label_to_display_name_.size());
     VisualizeBBox(cv_imgs, top[0], visualize_threshold_, colors,
-        label_to_display_name_, save_file_);
+                  label_to_display_name_, save_file_);
 #endif  // USE_OPENCV
   }
 }
 
 #ifdef CPU_ONLY
-STUB_GPU_FORWARD(NMSLayer, Forward);
+STUB_GPU_FORWARD(RoIDetectionOutputLayer, Forward);
 #endif
 
-INSTANTIATE_CLASS(NMSLayer);
-REGISTER_LAYER_CLASS(NMS);
+INSTANTIATE_CLASS(RoIDetectionOutputLayer);
+REGISTER_LAYER_CLASS(RoIDetectionOutput);
 
 }  // namespace caffe

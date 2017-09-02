@@ -137,14 +137,12 @@ int main(int argc, char** argv) {
 
   // Storing to db
   std::string root_folder(argv[1]);
-  RoIDatum roi_datum;
-  Datum* datum = roi_datum.mutable_anno_datum()->mutable_datum();
   int count = 0;
   int data_size = 0;
   bool data_size_initialized = false;
+  bool status;
 
   for (int line_id = 0; line_id < lines.size(); ++line_id) {
-    bool status = true;
     std::string enc = encode_type;
     if (encoded && !enc.size()) {
       // Guess the encoding type from the file name
@@ -155,6 +153,8 @@ int main(int argc, char** argv) {
       enc = fn.substr(p);
       std::transform(enc.begin(), enc.end(), enc.begin(), ::tolower);
     }
+    RoIDatum roi_datum;
+    Datum* datum = roi_datum.mutable_anno_datum()->mutable_datum();
 
     filename = root_folder + lines[line_id].first;
     labelfile = root_folder + boost::get<std::string>(lines[line_id].second);

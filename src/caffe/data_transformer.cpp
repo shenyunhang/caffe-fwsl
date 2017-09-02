@@ -280,31 +280,28 @@ void DataTransformer<Dtype>::Transform(
   Transform(anno_datum, transformed_blob, transformed_anno_vec, &do_mirror);
 }
 
-template<typename Dtype>
+template <typename Dtype>
 void DataTransformer<Dtype>::Transform(
-    const RoIDatum& roi_datum, Blob<Dtype>* transformed_blob,
-    string* transformed_roi_str, bool* do_mirror) {
+    const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
+    string *transformed_roi_str,
+    RepeatedPtrField<AnnotationGroup> *transformed_anno_group_all,
+    bool *do_mirror) {
+  // Prepare variable
+  const AnnotatedDatum &anno_datum = roi_datum.anno_datum();
+
   // Transform datum.
-  const Datum& datum = roi_datum.anno_datum().datum();
+  const Datum &datum = anno_datum.datum();
   NormalizedBBox crop_bbox;
   Transform(datum, transformed_blob, &crop_bbox, do_mirror);
 
   // Transform annotation.
   const bool do_resize = true;
-  // TODO(YH): transform annotation?
-  //TransformAnnotation(anno_datum, do_resize, crop_bbox, *do_mirror,
-                      //transformed_anno_group_all);
+  TransformAnnotation(anno_datum, do_resize, crop_bbox, *do_mirror,
+                      transformed_anno_group_all);
 
   // Transform RoI
-  TransformRoI(roi_datum, do_resize, crop_bbox, *do_mirror, transformed_roi_str);
-}
-
-template<typename Dtype>
-void DataTransformer<Dtype>::Transform(
-    const RoIDatum& roi_datum, Blob<Dtype>* transformed_blob,
-    string* transformed_roi_str) {
-  bool do_mirror;
-  Transform(roi_datum, transformed_blob, transformed_roi_str, &do_mirror);
+  TransformRoI(roi_datum, do_resize, crop_bbox, *do_mirror,
+               transformed_roi_str);
 }
 
 template <typename Dtype>
@@ -312,7 +309,14 @@ void DataTransformer<Dtype>::Transform(
     const RoIDatum &roi_datum, Blob<Dtype> *transformed_blob,
     string *transformed_roi_str, vector<AnnotationGroup> *transformed_anno_vec,
     bool *do_mirror) {
-  // TODO(YH):
+  RepeatedPtrField<AnnotationGroup> transformed_anno_group_all;
+
+  Transform(roi_datum, transformed_blob, transformed_roi_str,
+            &transformed_anno_group_all, do_mirror);
+
+  for (int g = 0; g < transformed_anno_group_all.size(); ++g) {
+    transformed_anno_vec->push_back(transformed_anno_group_all.Get(g));
+  }
 }
 
 template <typename Dtype>
@@ -323,6 +327,26 @@ void DataTransformer<Dtype>::Transform(
   bool do_mirror;
   Transform(roi_datum, transformed_blob, transformed_roi_str,
             transformed_anno_vec, &do_mirror);
+}
+
+template <typename Dtype>
+void DataTransformer<Dtype>::Transform(const RoIDatum &roi_datum,
+                                       Blob<Dtype> *transformed_blob,
+                                       string *transformed_roi_str,
+                                       bool *do_mirror) {
+
+  RepeatedPtrField<AnnotationGroup> transformed_anno_group_all;
+
+  Transform(roi_datum, transformed_blob, transformed_roi_str,
+            &transformed_anno_group_all, do_mirror);
+}
+
+template <typename Dtype>
+void DataTransformer<Dtype>::Transform(const RoIDatum &roi_datum,
+                                       Blob<Dtype> *transformed_blob,
+                                       string *transformed_roi_str) {
+  bool do_mirror;
+  Transform(roi_datum, transformed_blob, transformed_roi_str, &do_mirror);
 }
 
 template<typename Dtype>
@@ -386,11 +410,9 @@ void DataTransformer<Dtype>::TransformAnnotation(
 }
 
 template <typename Dtype>
-void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
-                                          const bool do_resize,
-                                          const NormalizedBBox &crop_bbox,
-                                          const bool do_mirror,
-                                          string *roi_str) {
+void DataTransformer<Dtype>::TransformRoI(
+    const RoIDatum &roi_datum, const bool do_resize,
+    const NormalizedBBox &crop_bbox, const bool do_mirror, string *roi_str) {
   const AnnotatedDatum &anno_datum = roi_datum.anno_datum();
 
   const int old_height = anno_datum.datum().height();
@@ -398,23 +420,33 @@ void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
   const float w_off = crop_bbox.xmin() * old_width;
   const float h_off = crop_bbox.ymin() * old_height;
 
-  int new_height;
-  int new_width;
-  InferNewSize(param_.resize_param(), old_width, old_height, &new_width,
-               &new_height);
-
   const string &data = roi_datum.roi().data();
 
   std::stringstream ss(data);
   std::stringstream new_ss;
-  //LOG(INFO) << data;
 
+  int num_transformed_roi = 0;
   float xmin, ymin, xmax, ymax;
   float new_xmin, new_ymin, new_xmax, new_ymax;
   float score;
   // TODO(YH): 这里可能会降低精度
   while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
-    //LOG_IF(INFO, Caffe::root_solver())<< xmin << " " << ymin << " " << xmax << " " << ymax << " " << score;
+    // LOG(INFO)<< xmin << " " << ymin << " " << xmax << " " << ymax << " " <<
+    // score;
+    {
+      // Check size
+      float roi_size;
+      if (xmax < xmin || ymax < ymin) {
+        // If bbox is invalid (e.g. xmax < xmin or ymax < ymin), return 0.
+        roi_size = 0.0;
+      } else {
+        const Dtype roi_width = xmax - xmin;
+        const Dtype roi_height = ymax - ymin;
+        // If bbox is not within range [0, 1].
+        roi_size = (roi_width + 1) * (roi_height + 1);
+      }
+      CHECK_GT(roi_size, 0) << "RoI size should larger than 0.";
+    }
 
     if (do_resize && param_.has_resize_param()) {
       CHECK_GT(old_height, 0);
@@ -422,6 +454,8 @@ void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
       UpdateBBoxByResizePolicy(param_.resize_param(), old_width, old_height,
                                &xmin, &ymin, &xmax, &ymax);
     }
+    // LOG(INFO)<< xmin << " " << ymin << " " << xmax << " " << ymax << " " <<
+    // score;
 
     new_xmin = xmin - w_off;
     new_ymin = ymin - h_off;
@@ -430,11 +464,14 @@ void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
 
     // Clip
     float z_f = 0.0;
-    new_xmin = std::max(std::min(new_xmin, float(new_width)), z_f);
-    new_ymin = std::max(std::min(new_ymin, float(new_height)), z_f);
-    new_xmax = std::max(std::min(new_xmax, float(new_width)), z_f);
-    new_ymax = std::max(std::min(new_ymax, float(new_height)), z_f);
+    float o_f = 1.0;
+    new_xmin = std::max(std::min(new_xmin, o_f), z_f);
+    new_ymin = std::max(std::min(new_ymin, o_f), z_f);
+    new_xmax = std::max(std::min(new_xmax, o_f), z_f);
+    new_ymax = std::max(std::min(new_ymax, o_f), z_f);
 
+    // LOG(INFO)<< new_xmin << " " << new_ymin << " " << new_xmax << " " <<
+    // new_ymax << " " << score;
     // Check size
     float box_size;
     if (new_xmax < new_xmin || new_ymax < new_ymin) {
@@ -444,7 +481,8 @@ void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
       const Dtype transform_width = new_xmax - new_xmin;
       const Dtype transform_height = new_ymax - new_ymin;
       // If bbox is not within range [0, 1].
-      box_size = (transform_width + 1) * (transform_height + 1);
+      //box_size = (transform_width + 1) * (transform_height + 1);
+      box_size = transform_width * transform_height;
     }
     if (box_size <= 0) {
       continue;
@@ -452,14 +490,18 @@ void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
 
     if (do_mirror) {
       float temp = new_xmin;
-      xmin = new_width - new_xmax;
-      xmax = new_width - temp;
+      new_xmin = 1 - new_xmax;
+      new_xmax = 1 - temp;
     }
 
-    //LOG_IF(INFO, Caffe::root_solver())<< new_xmin << " " << new_ymin << " " << new_xmax << " " << new_ymax << " " << score;
-    new_ss << new_xmin <<" "<< new_ymin <<" "<< new_xmax <<" "<< new_ymax <<" " << score << "\n";
+    // LOG_IF(INFO, Caffe::root_solver())<< new_xmin << " " << new_ymin << " "
+    // << new_xmax << " " << new_ymax << " " << score;
+    new_ss << new_xmin << " " << new_ymin << " " << new_xmax << " " << new_ymax
+           << " " << score << " ";
+    num_transformed_roi++;
   }
   *roi_str = new_ss.str();
+  // LOG(INFO) << "num_transformed_roi: " << num_transformed_roi;
 }
 
 template <typename Dtype>
@@ -703,8 +745,9 @@ void DataTransformer<Dtype>::ExpandImage(const RoIDatum &roi_datum,
   caffe_rng_uniform(1, 1.f, max_expand_ratio, &expand_ratio);
   // Expand the datum.
   NormalizedBBox expand_bbox;
-  const AnnotatedDatum& anno_datum = roi_datum.anno_datum();
-  AnnotatedDatum* expanded_anno_datum = expanded_roi_datum->mutable_anno_datum();
+  const AnnotatedDatum &anno_datum = roi_datum.anno_datum();
+  AnnotatedDatum *expanded_anno_datum =
+      expanded_roi_datum->mutable_anno_datum();
   ExpandImage(anno_datum.datum(), expand_ratio, &expand_bbox,
               expanded_anno_datum->mutable_datum());
   expanded_anno_datum->set_type(anno_datum.type());
@@ -721,11 +764,10 @@ void DataTransformer<Dtype>::ExpandImage(const RoIDatum &roi_datum,
   expanded_roi_datum->mutable_roi()->set_data(roi_str);
 
   // Copy label and difficult
-  for(int i=0; i< roi_datum.label_size();++i){
-	  expanded_roi_datum->add_label(roi_datum.label(i));
+  for (int i = 0; i < roi_datum.label_size(); ++i) {
+    expanded_roi_datum->add_label(roi_datum.label(i));
   }
   expanded_roi_datum->set_difficult(roi_datum.difficult());
-
 }
 
 template<typename Dtype>

@@ -553,11 +553,12 @@ message LayerParameter {
 
 
   optional RoIDataParameter roi_data_param = 100000;
-  optional ROIPoolingParameter roi_pooling_param = 100001;
-  optional SmoothL1LossParameter smooth_l1_loss_param = 100002;
-  optional GeneralPoolingParameter general_pooling_param = 100003;
-  optional CrossEntropyLossParameter cross_entropy_loss_param = 100013;
-  optional NMSParameter nms_param = 100004;
+  optional RoIScorePoolingParameter roi_score_pooling_param = 100001;
+  optional ROIPoolingParameter roi_pooling_param = 100002;
+  optional RoIDetectionOutputParameter roi_detection_output_param = 100006;
+  optional SmoothL1LossParameter smooth_l1_loss_param = 100003;
+  optional GeneralPoolingParameter general_pooling_param = 100004;
+  optional CrossEntropyLossParameter cross_entropy_loss_param = 100005;
 }
 
 // Message that stores parameters used to apply transformation
@@ -969,7 +970,7 @@ message DetectionEvaluateParameter {
   optional uint32 num_classes = 1;
   // Label id for background class. Needed for sanity check so that
   // background class is neither in the ground truth nor the detections.
-  optional uint32 background_label_id = 2 [default = 0];
+  optional int32 background_label_id = 2 [default = 0];
   // Threshold for deciding true/false positive.
   optional float overlap_threshold = 3 [default = 0.5];
   // If true, also consider difficult ground truth for evaluation.
@@ -1290,7 +1291,7 @@ message MultiBoxLossParameter {
   // Use prior for matching.
   optional bool use_prior_for_matching = 8 [default = true];
   // Background label id.
-  optional uint32 background_label_id = 9 [default = 0];
+  optional int32 background_label_id = 9 [default = 0];
   // If true, also consider difficult ground truth.
   optional bool use_difficult_gt = 10 [default = true];
   // If true, perform negative mining.
@@ -1739,9 +1740,26 @@ message SPPParameter {
   optional Engine engine = 6 [default = DEFAULT];
 }
 
+// Message that stores parameters used by ROIDataLayer
 message RoIDataParameter {
   optional int32 num_class = 1 [default = 20];
   optional int32 max_roi_per_im = 2 [default = 2048];
+  optional bool visualize = 3 [default = false];
+}
+
+// Message that stores parameters used by RoIScorePoolingLayer
+message RoIScorePoolingParameter {
+  enum PoolMethod {
+    SUM = 2;
+    MAX = 8;
+    TSUM = 4;
+    TAVEMAX = 6;
+    MUL = 7;
+
+  }
+  optional PoolMethod pool = 1 [default = MAX]; // The pooling method
+  optional float threshold = 2 [default = 0.0];
+  optional int32 axis = 3 [default = 1];
 }
 
 // Message that stores parameters used by ROIPoolingLayer
@@ -1787,8 +1805,8 @@ message CrossEntropyLossParameter {
   optional int32 ignore_value = 3 [default = -1];
 }
 
-// Message that store parameters used by NMSLayer
-message NMSParameter {
+// Message that store parameters used by RoIDetectionOutLayer
+message RoIDetectionOutputParameter {
   // Number of classes to be predicted. Required!
   optional uint32 num_classes = 1;
   // If true, bounding box are shared among different classes.

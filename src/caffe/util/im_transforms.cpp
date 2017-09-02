@@ -108,10 +108,10 @@ void UpdateBBoxByResizePolicy(const ResizeParameter &param, const int old_width,
   // float y_min = bbox->ymin() * old_height;
   // float x_max = bbox->xmax() * old_width;
   // float y_max = bbox->ymax() * old_height;
-  float x_min = *new_xmin;
-  float y_min = *new_ymin;
-  float x_max = *new_xmax;
-  float y_max = *new_ymax;
+  float x_min = *new_xmin * old_width;
+  float y_min = *new_ymin * old_height;
+  float x_max = *new_xmax * old_width;
+  float y_max = *new_ymax * old_height;
   float padding;
   switch (param.resize_mode()) {
   case ResizeParameter_Resize_mode_WARP:
@@ -157,10 +157,10 @@ void UpdateBBoxByResizePolicy(const ResizeParameter &param, const int old_width,
   // bbox->set_ymin(y_min / new_height);
   // bbox->set_xmax(x_max / new_width);
   // bbox->set_ymax(y_max / new_height);
-  *new_xmin = x_min;
-  *new_ymin = y_min;
-  *new_xmax = x_max;
-  *new_ymax = y_max;
+  *new_xmin = x_min / new_width;
+  *new_ymin = y_min / new_height;
+  *new_xmax = x_max / new_width;
+  *new_ymax = y_max / new_height;
 }
 
 void InferNewSize(const ResizeParameter& resize_param,
