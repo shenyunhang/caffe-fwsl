@@ -69,12 +69,12 @@ void Show_batch(const Batch<Dtype>* batch,
       xmax = roi[r * 5 + 3] * width;
       ymax = roi[r * 5 + 4] * height;
       num_item_roi++;
-      LOG(INFO) << xmin << " " << ymin << " " << xmax << " " << ymax;
+      // LOG(INFO) << xmin << " " << ymin << " " << xmax << " " << ymax;
 
       cv::Rect rec = cv::Rect(xmin, ymin, xmax - xmin, ymax - ymin);
       cv::rectangle(img_mat, rec, cv::Scalar(0, 0, 255), 1);
     }
-    LOG(INFO) << "out_RoI num: " << num_item_roi;
+    // LOG(INFO) << "out_RoI num: " << num_item_roi;
 
     std::stringstream ss;
     ss << "image_" << n;
@@ -324,7 +324,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         cv::Rect rec = cv::Rect(xmin, ymin, xmax - xmin, ymax - ymin);
         cv::rectangle(img_mat, rec, cv::Scalar(0, 0, 255), 1);
       }
-      LOG(INFO) << "in_RoI num: " << num_item_roi;
+      LOG(INFO) << "Original RoI num: " << num_item_roi;
 
       ss.str(std::string());
       ss.clear();
@@ -377,7 +377,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         cv::Rect rec = cv::Rect(xmin, ymin, xmax - xmin, ymax - ymin);
         cv::rectangle(img_mat, rec, cv::Scalar(0, 0, 255), 1);
       }
-      LOG(INFO) << "in_RoI num: " << num_item_roi;
+      LOG(INFO) << "Expanded RoI num: " << num_item_roi;
 
       ss.str(std::string());
       ss.clear();
@@ -391,6 +391,15 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       // Generate sampled bboxes from expand_datum.
       vector<NormalizedBBox> sampled_bboxes;
       GenerateBatchSamples(*expand_datum, batch_samplers_, &sampled_bboxes);
+      if (visualize_) {
+        LOG(INFO) << "sampled_bboxes size: " << sampled_bboxes.size();
+        for (int i = 0; i < sampled_bboxes.size(); i++) {
+          LOG(INFO) << "sampled_bboxes: " << sampled_bboxes[i].xmin() << " "
+                    << sampled_bboxes[i].ymin() << " "
+                    << sampled_bboxes[i].xmax() << " "
+                    << sampled_bboxes[i].ymax() << " ";
+        }
+      }
       if (sampled_bboxes.size() > 0) {
         // Randomly pick a sampled bbox and crop the expand_datum.
         int rand_idx = caffe_rng_rand() % sampled_bboxes.size();
@@ -398,6 +407,13 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         this->data_transformer_->CropImage(
             *expand_datum, sampled_bboxes[rand_idx], sampled_datum);
         has_sampled = true;
+        if (visualize_) {
+          LOG(INFO) << "choise sampled_bboxes: "
+                    << sampled_bboxes[rand_idx].xmin() << " "
+                    << sampled_bboxes[rand_idx].ymin() << " "
+                    << sampled_bboxes[rand_idx].xmax() << " "
+                    << sampled_bboxes[rand_idx].ymax() << " ";
+        }
       } else {
         sampled_datum = expand_datum;
       }
@@ -481,7 +497,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
         num_item_roi++;
       }
-      LOG(INFO) << "out_RoI num: " << num_item_roi;
+      LOG(INFO) << "Transformed RoI num: " << num_item_roi;
     }
   }
 

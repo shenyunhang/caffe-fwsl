@@ -410,15 +410,15 @@ void DataTransformer<Dtype>::TransformAnnotation(
 }
 
 template <typename Dtype>
-void DataTransformer<Dtype>::TransformRoI(
-    const RoIDatum &roi_datum, const bool do_resize,
-    const NormalizedBBox &crop_bbox, const bool do_mirror, string *roi_str) {
+void DataTransformer<Dtype>::TransformRoI(const RoIDatum &roi_datum,
+                                          const bool do_resize,
+                                          const NormalizedBBox &crop_bbox,
+                                          const bool do_mirror,
+                                          string *roi_str) {
   const AnnotatedDatum &anno_datum = roi_datum.anno_datum();
 
   const int old_height = anno_datum.datum().height();
   const int old_width = anno_datum.datum().width();
-  const float w_off = crop_bbox.xmin() * old_width;
-  const float h_off = crop_bbox.ymin() * old_height;
 
   const string &data = roi_datum.roi().data();
 
@@ -427,6 +427,7 @@ void DataTransformer<Dtype>::TransformRoI(
 
   int num_transformed_roi = 0;
   float xmin, ymin, xmax, ymax;
+  // float resize_xmin, resize_ymin, resize_xmax, resize_ymax;
   float new_xmin, new_ymin, new_xmax, new_ymax;
   float score;
   // TODO(YH): 这里可能会降低精度
@@ -448,57 +449,39 @@ void DataTransformer<Dtype>::TransformRoI(
       CHECK_GT(roi_size, 0) << "RoI size should larger than 0.";
     }
 
+    NormalizedBBox resize_bbox;
+    resize_bbox.set_xmin(xmin);
+    resize_bbox.set_ymin(ymin);
+    resize_bbox.set_xmax(xmax);
+    resize_bbox.set_ymax(ymax);
     if (do_resize && param_.has_resize_param()) {
       CHECK_GT(old_height, 0);
       CHECK_GT(old_width, 0);
       UpdateBBoxByResizePolicy(param_.resize_param(), old_width, old_height,
-                               &xmin, &ymin, &xmax, &ymax);
+                               &resize_bbox);
     }
     // LOG(INFO)<< xmin << " " << ymin << " " << xmax << " " << ymax << " " <<
     // score;
 
-    new_xmin = xmin - w_off;
-    new_ymin = ymin - h_off;
-    new_xmax = xmax - w_off;
-    new_ymax = ymax - h_off;
+    NormalizedBBox proj_bbox;
+    if (ProjectBBox(crop_bbox, resize_bbox, &proj_bbox)) {
+      new_xmin = proj_bbox.xmin();
+      new_ymin = proj_bbox.ymin();
+      new_xmax = proj_bbox.xmax();
+      new_ymax = proj_bbox.ymax();
 
-    // Clip
-    float z_f = 0.0;
-    float o_f = 1.0;
-    new_xmin = std::max(std::min(new_xmin, o_f), z_f);
-    new_ymin = std::max(std::min(new_ymin, o_f), z_f);
-    new_xmax = std::max(std::min(new_xmax, o_f), z_f);
-    new_ymax = std::max(std::min(new_ymax, o_f), z_f);
+      if (do_mirror) {
+        float temp = new_xmin;
+        new_xmin = 1 - new_xmax;
+        new_xmax = 1 - temp;
+      }
 
-    // LOG(INFO)<< new_xmin << " " << new_ymin << " " << new_xmax << " " <<
-    // new_ymax << " " << score;
-    // Check size
-    float box_size;
-    if (new_xmax < new_xmin || new_ymax < new_ymin) {
-      // If bbox is invalid (e.g. xmax < xmin or ymax < ymin), return 0.
-      box_size = 0.0;
-    } else {
-      const Dtype transform_width = new_xmax - new_xmin;
-      const Dtype transform_height = new_ymax - new_ymin;
-      // If bbox is not within range [0, 1].
-      //box_size = (transform_width + 1) * (transform_height + 1);
-      box_size = transform_width * transform_height;
+      // LOG_IF(INFO, Caffe::root_solver())<< new_xmin << " " << new_ymin << " "
+      // << new_xmax << " " << new_ymax << " " << score;
+      new_ss << new_xmin << " " << new_ymin << " " << new_xmax << " "
+             << new_ymax << " " << score << " ";
+      num_transformed_roi++;
     }
-    if (box_size <= 0) {
-      continue;
-    }
-
-    if (do_mirror) {
-      float temp = new_xmin;
-      new_xmin = 1 - new_xmax;
-      new_xmax = 1 - temp;
-    }
-
-    // LOG_IF(INFO, Caffe::root_solver())<< new_xmin << " " << new_ymin << " "
-    // << new_xmax << " " << new_ymax << " " << score;
-    new_ss << new_xmin << " " << new_ymin << " " << new_xmax << " " << new_ymax
-           << " " << score << " ";
-    num_transformed_roi++;
   }
   *roi_str = new_ss.str();
   // LOG(INFO) << "num_transformed_roi: " << num_transformed_roi;
