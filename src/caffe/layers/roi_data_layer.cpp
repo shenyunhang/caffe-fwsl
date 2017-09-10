@@ -408,7 +408,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
             *expand_datum, sampled_bboxes[rand_idx], sampled_datum);
         has_sampled = true;
         if (visualize_) {
-          LOG(INFO) << "choise sampled_bboxes: "
+          LOG(INFO) << "Chosen sampled_bboxes: "
                     << sampled_bboxes[rand_idx].xmin() << " "
                     << sampled_bboxes[rand_idx].ymin() << " "
                     << sampled_bboxes[rand_idx].xmax() << " "
