@@ -53,6 +53,7 @@ class ROIPoolingLayer : public Layer<Dtype> {
   int width_;
   int pooled_height_;
   int pooled_width_;
+  Dtype spatial_scale_;
   Blob<int> max_idx_;
 };
 
