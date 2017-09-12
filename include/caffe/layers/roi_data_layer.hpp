@@ -41,6 +41,7 @@ class RoIDataLayer : public BasePrefetchingRoIDataLayer<Dtype> {
   int max_roi_per_im_;
   int num_class_;
   bool visualize_;
+  int num_roi_visualize_;
 };
 
 }  // namespace caffe

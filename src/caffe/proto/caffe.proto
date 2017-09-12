@@ -555,10 +555,11 @@ message LayerParameter {
   optional RoIDataParameter roi_data_param = 100000;
   optional RoIScorePoolingParameter roi_score_pooling_param = 100001;
   optional ROIPoolingParameter roi_pooling_param = 100002;
-  optional RoIDetectionOutputParameter roi_detection_output_param = 100006;
-  optional SmoothL1LossParameter smooth_l1_loss_param = 100003;
-  optional GeneralPoolingParameter general_pooling_param = 100004;
-  optional CrossEntropyLossParameter cross_entropy_loss_param = 100005;
+  optional YAROIPoolingParameter ya_roi_pooling_param = 100003;
+  optional RoIDetectionOutputParameter roi_detection_output_param = 100004;
+  optional SmoothL1LossParameter smooth_l1_loss_param = 100005;
+  optional GeneralPoolingParameter general_pooling_param = 100006;
+  optional CrossEntropyLossParameter cross_entropy_loss_param = 100007;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1771,6 +1772,14 @@ message ROIPoolingParameter {
   // Multiplicative spatial scale factor to translate ROI coords from their
   // input scale to the scale used when pooling
   optional float spatial_scale = 3 [default = 1];
+}
+
+// Message that stores parameters used by YAROIPoolingLayer
+message YAROIPoolingParameter {
+  // Pad, kernel size, and stride are all given as a single value for equal
+  // dimensions in height and width or as Y, X pairs.
+  optional uint32 pooled_h = 1 [default = 0]; // The pooled output height
+  optional uint32 pooled_w = 2 [default = 0]; // The pooled output width
 }
 
 message SmoothL1LossParameter {

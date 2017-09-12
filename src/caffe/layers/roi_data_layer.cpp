@@ -16,9 +16,11 @@ namespace caffe {
 
 template <typename Dtype>
 void Show_batch(const Batch<Dtype>* batch,
-                const TransformationParameter transform_param) {
+                const TransformationParameter transform_param,
+                const int num_roi_visualize_) {
   const Dtype* data = batch->data_.cpu_data();
   const Dtype* roi = batch->roi_.cpu_data();
+  const Dtype* roi_num = batch->roi_num_.cpu_data();
 
   const int num = batch->data_.num();
   const int channels = batch->data_.channels();
@@ -64,17 +66,21 @@ void Show_batch(const Batch<Dtype>* batch,
       } else {
         continue;
       }
+      num_item_roi++;
+      if (num_item_roi > num_roi_visualize_) {
+        continue;
+      }
       xmin = roi[r * 5 + 1] * width;
       ymin = roi[r * 5 + 2] * height;
       xmax = roi[r * 5 + 3] * width;
       ymax = roi[r * 5 + 4] * height;
-      num_item_roi++;
       // LOG(INFO) << xmin << " " << ymin << " " << xmax << " " << ymax;
 
       cv::Rect rec = cv::Rect(xmin, ymin, xmax - xmin, ymax - ymin);
       cv::rectangle(img_mat, rec, cv::Scalar(0, 0, 255), 1);
     }
     // LOG(INFO) << "out_RoI num: " << num_item_roi;
+    CHECK_EQ(num_item_roi, roi_num[n]) << "num of roi is not consistent.";
 
     std::stringstream ss;
     ss << "image_" << n;
@@ -130,6 +136,9 @@ void RoIDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   label_map_file_ = anno_data_param.label_map_file();
   visualize_ = roi_data_param.visualize();
+  max_roi_per_im_ = roi_data_param.max_roi_per_im();
+  num_roi_visualize_ = 100;
+
   // Make sure dimension is consistent within batch.
   const TransformationParameter& transform_param =
       this->layer_param_.transform_param();
@@ -162,7 +171,6 @@ void RoIDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // roi
   // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
   vector<int> roi_shape(2, 1);
-  max_roi_per_im_ = roi_data_param.max_roi_per_im();
   roi_shape[0] = max_roi_per_im_ * batch_size;
   roi_shape[1] = 5;
   top[1]->Reshape(roi_shape);
@@ -294,6 +302,10 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     timer.Start();
     // get a roi_datum
     RoIDatum& roi_datum = *(reader_.full().pop("Waiting for data"));
+    while (roi_datum.difficult()) {
+      reader_.free().push(const_cast<RoIDatum*>(&roi_datum));
+      roi_datum = *(reader_.full().pop("Waiting for data"));
+    }
 
     //--------------------------------------------------------
     // Store label
@@ -317,6 +329,9 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       // TODO(YH): 这里可能会降低精度
       while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
         num_item_roi++;
+        if (num_item_roi > num_roi_visualize_) {
+          continue;
+        }
         xmin *= img_width;
         ymin *= img_height;
         xmax *= img_width;
@@ -370,6 +385,9 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       // TODO(YH): 这里可能会降低精度
       while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
         num_item_roi++;
+        if (num_item_roi > num_roi_visualize_) {
+          continue;
+        }
         xmin *= img_width;
         ymin *= img_height;
         xmax *= img_width;
@@ -507,10 +525,15 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   float xmin, ymin, xmax, ymax;
   float score;
   for (int item_id = 0; item_id < batch_size; ++item_id) {
+    int num_item_roi = 0;
     std::stringstream ss(all_roi[item_id]);
     // TODO(YH): 这里可能会降低精度
     while (ss >> xmin >> ymin >> xmax >> ymax >> score) {
       num_roi++;
+      num_item_roi++;
+      if (num_item_roi > max_roi_per_im_) {
+        break;
+      }
     }
   }
 
@@ -551,6 +574,9 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       top_roi_score += batch->roi_score_.offset(1);
 
       num_item_roi++;
+      if (num_item_roi > max_roi_per_im_) {
+        break;
+      }
     }
     top_roi_num[item_id] = num_item_roi;
     // LOG(INFO)<< "item_id: "<<item_id<<" num_item_roi: "<<num_item_roi;
@@ -605,7 +631,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   DLOG(INFO) << "Transform time: " << trans_time / 1000 << " ms.";
 
   if (visualize_) {
-    Show_batch(batch, transform_param);
+    Show_batch(batch, transform_param, num_roi_visualize_);
   }
 }
 
