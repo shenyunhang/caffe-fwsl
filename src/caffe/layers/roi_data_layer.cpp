@@ -28,8 +28,8 @@ void Show_batch(const Batch<Dtype>* batch,
   const int width = batch->data_.width();
   const int num_roi = batch->roi_.num();
 
-  const string save_path = "";
-  const string save_path_jet = "";
+  // const string save_path = "";
+  // const string save_path_jet = "";
   vector<float> mean_values;
   for (int c = 0; c < transform_param.mean_value_size(); ++c) {
     mean_values.push_back(transform_param.mean_value(c));
@@ -570,7 +570,7 @@ void RoIDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       top_roi[4] = ymax;
       top_roi += batch->roi_.offset(1);
 
-      top_roi_score[0] = score;
+      top_roi_score[0] = score + 1.0;
       top_roi_score += batch->roi_score_.offset(1);
 
       num_item_roi++;

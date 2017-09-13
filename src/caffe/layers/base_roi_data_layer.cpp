@@ -86,6 +86,11 @@ void BasePrefetchingRoIDataLayer<Dtype>::InternalThreadEntry() {
 #ifndef CPU_ONLY
       if (Caffe::mode() == Caffe::GPU) {
         batch->data_.data().get()->async_gpu_push(stream);
+        batch->roi_.data().get()->async_gpu_push(stream);
+        batch->roi_score_.data().get()->async_gpu_push(stream);
+        batch->roi_num_.data().get()->async_gpu_push(stream);
+        batch->label_.data().get()->async_gpu_push(stream);
+        batch->box_.data().get()->async_gpu_push(stream);
         CUDA_CHECK(cudaStreamSynchronize(stream));
       }
 #endif
