@@ -551,15 +551,20 @@ message LayerParameter {
   optional VideoDataParameter video_data_param = 207;
   optional WindowDataParameter window_data_param = 129;
 
-  optional RoIDataParameter roi_data_param = 100001;
-  optional RoIDetectionOutputParameter roi_detection_output_param = 100002;
+  optional CPGParameter cpg_param = 100001;
+  optional PolarConstraintParameter polar_constraint_param = 100002;
+  optional DenseCRFParameter dense_crf_param = 100003;
 
-  optional RoIScorePoolingParameter roi_score_pooling_param = 110001;
-  optional ROIPoolingParameter roi_pooling_param = 110002;
-  optional YAROIPoolingParameter ya_roi_pooling_param = 110003;
+  optional RoIDataParameter roi_data_param = 110001;
+  optional RoIDetectionOutputParameter roi_detection_output_param = 110002;
 
-  optional SmoothL1LossParameter smooth_l1_loss_param = 120001;
-  optional CrossEntropyLossParameter cross_entropy_loss_param = 120002;
+  optional RoIScorePoolingParameter roi_score_pooling_param = 120001;
+  optional ROIPoolingParameter roi_pooling_param = 120002;
+  optional YAROIPoolingParameter ya_roi_pooling_param = 120003;
+
+  optional SmoothL1LossParameter smooth_l1_loss_param = 130001;
+  optional CrossEntropyLossParameter cross_entropy_loss_param = 130002;
+  optional CenterLossParameter center_loss_param = 130003;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1741,11 +1746,91 @@ message SPPParameter {
   optional Engine engine = 6 [default = DEFAULT];
 }
 
+// Message that stores parameters used by CPGLayer
+message CPGParameter {
+  enum Mode {
+    CPG_POOLING = 0;
+    PRED = 1;
+    CRF = 2;
+  }
+  optional bool is_cpg = 1 [default = true];
+  optional int32 max_num_im_cpg = 2 [default = 0];
+  optional bool is_contrast = 3 [default = false];
+  optional bool is_order = 4 [default = false];
+  optional bool debug_info = 5 [default = false];
+
+  optional Mode mode = 11 [default = CPG_POOLING];
+  optional int32 ignore_label = 12 [default = -1];
+
+  required string start_layer_name = 21 [default = ''];
+  required string end_layer_name = 22 [default = ''];
+  repeated string cpg_blob_name = 23;
+  optional float predict_threshold = 24 [default = 0.5];
+  optional float predict_order = 25 [default = 0.0];
+  optional float crf_threshold = 26 [default = 0.5];
+
+  optional float fg_threshold = 31 [default = 0.5];
+  optional float bg_threshold = 32 [default = 0.001];
+  optional float mass_threshold = 33 [default = 0.0];
+  optional float density_threshold = 34 [default = 0.0];
+}
+
+// Message that stores parameters used by PolarConstraintLayer
+message PolarConstraintParameter {
+  optional bool polar = 1 [default = false]; //
+}
+
+message DenseCRFParameter {
+  // max number of iteration for message passing
+  optional int32 max_iter = 1 [default = 10];
+  // positional std and weight for "Positional" filter (color-independent)
+  repeated float pos_xy_std = 2;
+  repeated float pos_w = 3;
+  // positional std, color std and weight for Bilateral filter
+  repeated float bi_xy_std = 4;
+  repeated float bi_rgb_std = 5;
+  repeated float bi_w = 6; 
+  // output is probability or score (score = log(prob))
+  optional bool output_probability = 7 [default = true];
+}
+
 // Message that stores parameters used by ROIDataLayer
 message RoIDataParameter {
   optional int32 num_class = 1 [default = 20];
   optional int32 max_roi_per_im = 2 [default = 2048];
   optional bool visualize = 3 [default = false];
+}
+
+// Message that store parameters used by RoIDetectionOutLayer
+message RoIDetectionOutputParameter {
+  // Number of classes to be predicted. Required!
+  optional uint32 num_classes = 1;
+  // If true, bounding box are shared among different classes.
+  optional bool share_location = 2 [default = true];
+  // Background label id. If there is no background class,
+  // set it as -1.
+  optional int32 background_label_id = 3 [default = 0];
+  // Parameters used for non maximum suppression.
+  optional NonMaximumSuppressionParameter nms_param = 4;
+  // Parameters used for saving detection results.
+  optional SaveOutputParameter save_output_param = 5;
+  // Type of coding method for bbox.
+  optional PriorBoxParameter.CodeType code_type = 6 [default = CORNER];
+  // If true, variance is encoded in target; otherwise we need to adjust the
+  // predicted offset accordingly.
+  optional bool variance_encoded_in_target = 8 [default = false];
+  // Number of total bboxes to be kept per image after nms step.
+  // -1 means keeping all bboxes after nms step.
+  optional int32 keep_top_k = 7 [default = -1];
+  // Only consider detections whose confidences are larger than a threshold.
+  // If not provided, consider all boxes.
+  optional float confidence_threshold = 9;
+  // If true, visualize the detection results.
+  optional bool visualize = 10 [default = false];
+  // The threshold used to visualize the detection results.
+  optional float visualize_threshold = 11;
+  // If provided, save outputs to video file.
+  optional string save_file = 12;
 }
 
 // Message that stores parameters used by RoIScorePoolingLayer
@@ -1796,36 +1881,14 @@ message CrossEntropyLossParameter {
   optional int32 ignore_value = 3 [default = -1];
 }
 
-// Message that store parameters used by RoIDetectionOutLayer
-message RoIDetectionOutputParameter {
-  // Number of classes to be predicted. Required!
-  optional uint32 num_classes = 1;
-  // If true, bounding box are shared among different classes.
-  optional bool share_location = 2 [default = true];
-  // Background label id. If there is no background class,
-  // set it as -1.
-  optional int32 background_label_id = 3 [default = 0];
-  // Parameters used for non maximum suppression.
-  optional NonMaximumSuppressionParameter nms_param = 4;
-  // Parameters used for saving detection results.
-  optional SaveOutputParameter save_output_param = 5;
-  // Type of coding method for bbox.
-  optional PriorBoxParameter.CodeType code_type = 6 [default = CORNER];
-  // If true, variance is encoded in target; otherwise we need to adjust the
-  // predicted offset accordingly.
-  optional bool variance_encoded_in_target = 8 [default = false];
-  // Number of total bboxes to be kept per image after nms step.
-  // -1 means keeping all bboxes after nms step.
-  optional int32 keep_top_k = 7 [default = -1];
-  // Only consider detections whose confidences are larger than a threshold.
-  // If not provided, consider all boxes.
-  optional float confidence_threshold = 9;
-  // If true, visualize the detection results.
-  optional bool visualize = 10 [default = false];
-  // The threshold used to visualize the detection results.
-  optional float visualize_threshold = 11;
-  // If provided, save outputs to video file.
-  optional string save_file = 12;
+message CenterLossParameter {
+  optional FillerParameter center_filler = 1;
+  optional bool debug_info = 2 [default = false];
+  optional float lr = 3 [default = 0.5];
+  optional uint32 top_k = 4 [default = 10];
+  optional uint32 num_center = 5 [default = 1];
+  optional uint32 display = 6 [default = 1280];
+  optional uint32 update = 7 [default = 128];
 }
 
 // DEPRECATED: use LayerParameter.
