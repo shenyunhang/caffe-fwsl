@@ -47,6 +47,7 @@ class CPGLayer : public Layer<Dtype> {
   void Clear_split_diff();
   void Get_split_top_blob();
   void Show_cpg(const Dtype* cpg_data, const int cur, const string info = "");
+  void Show_im(const Dtype* im_data, const int cur);
   bool Need_Repartition(const int cls_id, const Dtype label, const Dtype score);
   bool Need_Order(const int cls_id, const Dtype label, const Dtype score);
   void After();

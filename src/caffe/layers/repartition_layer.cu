@@ -1046,7 +1046,7 @@ void RepartitionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype> *> &bottom,
   //----------------------------------------------------------------------
   // Show patch
   //----------------------------------------------------------------------
-  if (debug_info_) {
+  if (debug_info_&&false) {
     Show_rois(bottom[bottom_index_["rois"]]->cpu_data(), filter_.cpu_data(),
               bottom_label, pass_im_, num_im_, num_class_, num_roi_, voc_label_,
               "_w_", predict_threshold_, true);
