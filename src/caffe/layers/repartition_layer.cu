@@ -603,14 +603,10 @@ __global__ void CPGPooling(const int num_roi, const Dtype *cpg_data,
     int rois_index = index;
 
     rois_data += 5 * rois_index;
-    //int wstart = round(rois_data[1]);
-    //int hstart = round(rois_data[2]);
-    //int wend = round(rois_data[3]);
-    //int hend = round(rois_data[4]);
-    int wstart = round(rois_data[1] * width_im);
-    int hstart = round(rois_data[2] * height_im);
-    int wend = round(rois_data[3] * width_im);
-    int hend = round(rois_data[4] * height_im);
+    int wstart = round(rois_data[1]);
+    int hstart = round(rois_data[2]);
+    int wend = round(rois_data[3]);
+    int hend = round(rois_data[4]);
 
     // Check RoI
     if (wstart >= 0 && hstart >= 0 && wstart < wend && hstart < hend &&
@@ -1046,7 +1042,7 @@ void RepartitionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype> *> &bottom,
   //----------------------------------------------------------------------
   // Show patch
   //----------------------------------------------------------------------
-  if (debug_info_&&false) {
+  if (debug_info_) {
     Show_rois(bottom[bottom_index_["rois"]]->cpu_data(), filter_.cpu_data(),
               bottom_label, pass_im_, num_im_, num_class_, num_roi_, voc_label_,
               "_w_", predict_threshold_, true);
