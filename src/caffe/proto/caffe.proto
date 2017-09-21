@@ -1762,9 +1762,11 @@ message CPGParameter {
   optional Mode mode = 11 [default = CPG_POOLING];
   optional int32 ignore_label = 12 [default = -1];
 
-  required string start_layer_name = 21 [default = ''];
-  required string end_layer_name = 22 [default = ''];
+  /*required string start_layer_name = 21 [default = ''];*/
+  /*required string end_layer_name = 22 [default = ''];*/
   repeated string cpg_blob_name = 23;
+  required string predict_blob_name = 35;
+
   optional float predict_threshold = 24 [default = 0.5];
   optional float predict_order = 25 [default = 0.0];
   optional float crf_threshold = 26 [default = 0.5];

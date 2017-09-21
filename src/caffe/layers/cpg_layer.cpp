@@ -45,11 +45,12 @@ void CPGLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   predict_order_ = this_layer_param.predict_order();
   ignore_label_ = this_layer_param.ignore_label();
   debug_info_ = this_layer_param.debug_info();
-  start_layer_name_ = this_layer_param.start_layer_name();
-  end_layer_name_ = this_layer_param.end_layer_name();
+  // start_layer_name_ = this_layer_param.start_layer_name();
+  // end_layer_name_ = this_layer_param.end_layer_name();
   for (size_t i = 0; i < this_layer_param.cpg_blob_name().size(); ++i) {
     cpg_blob_name_.push_back(this_layer_param.cpg_blob_name(i));
   }
+  predict_blob_name_ = this_layer_param.predict_blob_name();
 
   bottom_label_index_ = 0;
 
@@ -68,16 +69,16 @@ void CPGLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   is_history_init_ = false;
 
   // init layer index
-  LOG_IF(INFO, debug_info_) << "Initing layer index";
-  const vector<string> layer_names = net_->layer_names();
-  for (size_t i = 0; i < layer_names.size(); i++) {
-    if (layer_names[i].compare(start_layer_name_) == 0) {
-      start_layer_index_ = i;
-    }
-    if (layer_names[i].compare(end_layer_name_) == 0) {
-      end_layer_index_ = i;
-    }
-  }
+  LOG_IF(INFO, debug_info_) << "Initing blob index";
+  // const vector<string> layer_names = net_->layer_names();
+  // for (size_t i = 0; i < layer_names.size(); i++) {
+  // if (layer_names[i].compare(start_layer_name_) == 0) {
+  // start_layer_index_ = i;
+  //}
+  // if (layer_names[i].compare(end_layer_name_) == 0) {
+  // end_layer_index_ = i;
+  //}
+  //}
 
   cpg_blob_index_.clear();
   const vector<string> blob_names = net_->blob_names();
@@ -85,6 +86,46 @@ void CPGLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     for (size_t j = 0; j < cpg_blob_name_.size(); ++j) {
       if (blob_names[i].compare(cpg_blob_name_[j]) == 0) {
         cpg_blob_index_.push_back(i);
+        LOG_IF(INFO, debug_info_) << "Add cpg_blob_index_: " << i
+                                  << " for: " << cpg_blob_name_[j];
+      }
+    }
+    if (blob_names[i].compare(predict_blob_name_) == 0) {
+      predict_blob_index_ = i;
+      LOG_IF(INFO, debug_info_) << "Change: predict_blob_index_: " << i
+                                << " for: " << predict_blob_name_;
+    }
+  }
+
+  LOG_IF(INFO, debug_info_) << "Initing layer index";
+  const vector<string> layer_names = net_->layer_names();
+  start_layer_index_ = layer_names.size() - 1;
+  end_layer_index_ = 0;
+  for (size_t i = 0; i < layer_names.size(); i++) {
+    const vector<int> bottom_ids = net_->bottom_ids(i);
+    for (size_t j = 0; j < bottom_ids.size(); j++) {
+      for (size_t k = 0; k < cpg_blob_index_.size(); k++) {
+        if (bottom_ids[j] == cpg_blob_index_[k]) {
+          if (i < start_layer_index_) {
+            start_layer_index_ = i;
+            start_layer_name_ = layer_names[i];
+            LOG_IF(INFO, debug_info_)
+                << "Change: start_layer_index_: " << i
+                << " start_layer_name_: " << start_layer_name_;
+          }
+        }
+      }
+    }
+
+    const vector<int> top_ids = net_->top_ids(i);
+    for (size_t j = 0; j < top_ids.size(); j++) {
+      if (top_ids[j] == predict_blob_index_) {
+        if (i > end_layer_index_) {
+          end_layer_index_ = i;
+          end_layer_name_ = layer_names[i];
+          LOG_IF(INFO, debug_info_) << "Change: end_layer_index_: " << i
+                                    << " end_layer_name_: " << end_layer_name_;
+        }
       }
     }
   }
@@ -107,9 +148,9 @@ void CPGLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     // TODO(YH): the image blob means the first cpg blob
     im_blob_ = net_->blobs()[cpg_blob_index_[0]];
 
-    const vector<int> end_top_ids = net_->top_ids(end_layer_index_);
-    CHECK_EQ(end_top_ids.size(), 1) << "end_top_ids size should be one";
-    predict_blob_index_ = end_top_ids[0];
+    // const vector<int> end_top_ids = net_->top_ids(end_layer_index_);
+    // CHECK_EQ(end_top_ids.size(), 1) << "end_top_ids size should be one";
+    // predict_blob_index_ = end_top_ids[0];
     predict_blob_ = net_->blobs()[predict_blob_index_];
 
     for (size_t i = 0; i < cpg_blob_index_.size(); ++i) {
@@ -153,11 +194,12 @@ void CPGLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   LOG(INFO) << "start_layer_index_: " << start_layer_index_;
   LOG(INFO) << "end_layer_name_: " << end_layer_name_;
   LOG(INFO) << "end_layer_index_: " << end_layer_index_;
-  LOG(INFO) << "predict_blob_index_: " << predict_blob_index_;
   for (size_t i = 0; i < cpg_blob_name_.size(); ++i) {
     LOG(INFO) << "cpg_blob_name_: " << cpg_blob_name_[i];
     LOG(INFO) << "cpg_blob_index_: " << cpg_blob_index_[i];
   }
+  LOG(INFO) << "predict_blob_name_: " << predict_blob_name_;
+  LOG(INFO) << "predict_blob_index_: " << predict_blob_index_;
   LOG(INFO) << "==============================================";
 }
 

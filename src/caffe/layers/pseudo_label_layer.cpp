@@ -60,7 +60,9 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   vector<int> index_pgt_roi;
   vector<int> group_label_pgt_roi;
   vector<int> instance_id_pgt_roi;
-
+  index_pgt_roi.clear();
+  group_label_pgt_roi.clear();
+  instance_id_pgt_roi.clear();
   index_pgt_roi.reserve(reserve_size_);
   group_label_pgt_roi.reserve(reserve_size_);
   instance_id_pgt_roi.reserve(reserve_size_);
@@ -92,7 +94,7 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         group_label_pgt_roi.push_back(j);
         instance_id_pgt_roi.push_back(t);
       }
-      index_pgt_roi.insert(index_pgt_roi.begin(), idx_score.begin(),
+      index_pgt_roi.insert(index_pgt_roi.end(), idx_score.begin(),
                            idx_score.end());
     }
   }
@@ -102,7 +104,7 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   top_shape[0] = 1;
   top_shape[1] = 1;
   top_shape[2] = index_pgt_roi.size();
-  top_shape[3] = 1;
+  top_shape[3] = 8;
   top[0]->Reshape(top_shape);
   Dtype* top_label = top[0]->mutable_cpu_data();
 
@@ -110,7 +112,8 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   for (size_t t = 0; t < index_pgt_roi.size(); t++) {
     int r = index_pgt_roi[t];
     top_label[idx++] = roi_data[r * 5 + 0];
-    top_label[idx++] = group_label_pgt_roi[t];
+    // TODO(YH): Plus one to add background
+    top_label[idx++] = group_label_pgt_roi[t] + 1;
     top_label[idx++] = instance_id_pgt_roi[t];
     top_label[idx++] = roi_data[r * 5 + 1];
     top_label[idx++] = roi_data[r * 5 + 2];

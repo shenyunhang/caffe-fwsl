@@ -39,11 +39,12 @@ void CPGLayer<Dtype>::Show_info() {
   LOG(INFO) << "start_layer_index_: " << start_layer_index_;
   LOG(INFO) << "end_layer_name_: " << end_layer_name_;
   LOG(INFO) << "end_layer_index_: " << end_layer_index_;
-  LOG(INFO) << "predict_blob_index_: " << predict_blob_index_;
   for (size_t i = 0; i < cpg_blob_name_.size(); ++i) {
     LOG(INFO) << "cpg_blob_name_: " << cpg_blob_name_[i];
     LOG(INFO) << "cpg_blob_index_: " << cpg_blob_index_[i];
   }
+  LOG(INFO) << "predict_blob_name_: " << predict_blob_name_;
+  LOG(INFO) << "predict_blob_index_: " << predict_blob_index_;
 
   const vector<string> layer_names_ = net_->layer_names();
   LOG(INFO) << "----------------------------------------------";

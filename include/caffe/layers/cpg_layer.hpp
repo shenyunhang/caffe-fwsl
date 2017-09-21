@@ -72,30 +72,23 @@ class CPGLayer : public Layer<Dtype> {
   bool is_order_;
   float predict_threshold_;
   float predict_order_;
+
+  vector<string> cpg_blob_name_;
+  string predict_blob_name_;
+  vector<int> cpg_blob_index_;
+  int predict_blob_index_;
+
   string start_layer_name_;
   string end_layer_name_;
-  vector<string> cpg_blob_name_;
-
-  int display_;
-  int pass_im_;
-  int max_num_im_cpg_;
-
-  int ignore_label_;
-
   int start_layer_index_;
   int end_layer_index_;
-  int predict_blob_index_;
-  vector<int> cpg_blob_index_;
 
   shared_ptr<Blob<Dtype> > im_blob_;
   shared_ptr<Blob<Dtype> > predict_blob_;
   vector<shared_ptr<Blob<Dtype> > > cpg_blob_;
 
   int bottom_label_index_;
-  int bottom_predict_index_;
 
-  int save_id_;
-  bool is_show_;
   shared_ptr<Blob<Dtype> > raw_cpg_;
 
   // abandon now
@@ -121,6 +114,15 @@ class CPGLayer : public Layer<Dtype> {
   int accum_im_;
   int accum_bp_;
   int accum_gt_;
+
+  int display_;
+  int pass_im_;
+  int max_num_im_cpg_;
+
+  int ignore_label_;
+
+  int save_id_;
+  bool is_show_;
 
   vector<string> voc_label_;
 };
