@@ -26,6 +26,7 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // roi_score
   // roi
   // label
+  // detection_out
   num_roi_ = bottom[0]->num();
   CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
 
@@ -34,7 +35,7 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   CHECK_EQ(bottom[1]->num_axes(), 2) << "shape missmatch.";
 
   num_img_ = bottom[2]->num();
-  num_classes_ = bottom[2]->count(1);
+  num_cls_ = bottom[2]->count(1);
   CHECK_EQ(bottom[2]->channels(), bottom[0]->channels())
       << "channels not consist.";
   CHECK_EQ(bottom[2]->num_axes(), 2) << "shape missmatch.";
@@ -47,11 +48,33 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   top[0]->Reshape(top_shape);
 
   // 假设每张图像每个类别有一个GT
-  reserve_size_ = num_img_ * num_classes_;
+  reserve_size_ = num_img_ * num_cls_;
+
+  if (bottom.size() == 4) {
+    CHECK_EQ(top.size(), 2) << "top size should be 2.";
+    CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";
+    CHECK_EQ(bottom[3]->channels(), 1) << "channels of 4-th blob should be 1";
+    num_det_ = bottom[3]->height();
+    CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
+
+    vector<int> roi_det_shape(2);
+    roi_det_shape[0] = num_roi_;
+    roi_det_shape[1] = num_det_;
+    roi_det_.Reshape(roi_det_shape);
+
+    vector<int> det_cls_shape(2);
+    det_cls_shape[0] = num_det_;
+    det_cls_shape[1] = num_cls_;
+    det_cls_.Reshape(det_cls_shape);
+
+    top[1]->ReshapeLike(*bottom[0]);
+  }
 }
 
 template <typename Dtype>
-void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+// void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+// const vector<Blob<Dtype>*>& top) {
+void PseudoLabelLayer<Dtype>::top1forward(const vector<Blob<Dtype>*>& bottom,
                                           const vector<Blob<Dtype>*>& top) {
   const Dtype* score_data = bottom[0]->cpu_data();
   const Dtype* roi_data = bottom[1]->cpu_data();
@@ -68,8 +91,8 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   instance_id_pgt_roi.reserve(reserve_size_);
 
   for (int i = 0; i < num_img_; i++) {
-    for (int j = 0; j < num_classes_; j++) {
-      int label = label_data[i * num_classes_ + j];
+    for (int j = 0; j < num_cls_; j++) {
+      int label = label_data[i * num_cls_ + j];
       if (label != 1) {
         continue;
       }
@@ -81,7 +104,7 @@ void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
         if (roi_data[r * 5 + 0] != i) {
           continue;
         }
-        Dtype score = score_data[r * num_classes_ + j];
+        Dtype score = score_data[r * num_cls_ + j];
         if (score > max_score) {
           max_score = score;
           idx_score.clear();
@@ -134,10 +157,6 @@ void PseudoLabelLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     }
   }
 }
-
-#ifdef CPU_ONLY
-STUB_GPU(PseudoLabelLayer);
-#endif
 
 INSTANTIATE_CLASS(PseudoLabelLayer);
 REGISTER_LAYER_CLASS(PseudoLabel);
