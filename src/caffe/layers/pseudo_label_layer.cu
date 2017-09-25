@@ -15,9 +15,9 @@ __global__ void Get_roi_det_blob(const int nthreads, const Dtype* roi_data,
     const int det_idx = index % num_det;
 
     // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
-    const Dtype* roi = roi_data[roi_idx * 5];
+    const Dtype* roi = roi_data + roi_idx * 5;
     //[image_id, label, confidence, xmin, ymin, xmax, ymax]
-    const Dtype* det = det_data[det_idx * 7];
+    const Dtype* det = det_data + det_idx * 7;
 
     if (roi[0] != det[0]) {
       roi_det_data[roi_idx * num_det + roi_idx] = 0;
@@ -66,7 +66,7 @@ void PseudoLabelLayer<Dtype>::top1forward(const vector<Blob<Dtype>*>& bottom,
   //[image_id, label, confidence, xmin, ymin, xmax, ymax]
   const Dtype* det_data = bottom[3]->cpu_data();
   for (int i = 0; i < num_det_; ++i) {
-    const Dtype* det = det_data[i * 7];
+    const Dtype* det = det_data + i * 7;
     const int label = det[1];
     CHECK_LT(label, 0) << "found background label in detection result.";
     det_cls_data[i * num_cls_ + label - 1] = det[2];
@@ -98,5 +98,7 @@ void PseudoLabelLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     }
   }
 }
+
+INSTANTIATE_LAYER_GPU_FUNCS(PseudoLabelLayer);
 
 }  // namespace caffe

@@ -1765,16 +1765,16 @@ message CPGParameter {
   /*required string start_layer_name = 21 [default = ''];*/
   /*required string end_layer_name = 22 [default = ''];*/
   repeated string cpg_blob_name = 23;
-  required string predict_blob_name = 35;
+  required string predict_blob_name = 24;
 
-  optional float predict_threshold = 24 [default = 0.5];
-  optional float predict_order = 25 [default = 0.0];
-  optional float crf_threshold = 26 [default = 0.5];
+  optional float predict_threshold = 31 [default = 0.5];
+  optional float predict_order = 32 [default = 0.0];
+  optional float crf_threshold = 33 [default = 0.5];
 
-  optional float fg_threshold = 31 [default = 0.5];
-  optional float bg_threshold = 32 [default = 0.001];
-  optional float mass_threshold = 33 [default = 0.0];
-  optional float density_threshold = 34 [default = 0.0];
+  optional float fg_threshold = 41 [default = 0.5];
+  optional float bg_threshold = 42 [default = 0.001];
+  optional float mass_threshold = 43 [default = 0.0];
+  optional float density_threshold = 44 [default = 0.0];
 }
 
 // Message that stores parameters used by PolarConstraintLayer

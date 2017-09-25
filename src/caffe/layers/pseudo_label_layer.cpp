@@ -18,14 +18,32 @@ void PseudoLabelLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   CHECK_EQ(bottom[2]->channels(), bottom[0]->channels())
       << "channels not consist.";
   CHECK_EQ(bottom[2]->num_axes(), 2) << "shape missmatch.";
+
+  if (bottom.size() == 5) {
+    CHECK_EQ(top.size(), 2) << "top size should be 2.";
+
+    CHECK_EQ(bottom[3]->num(), bottom[1]->num())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->channels(), bottom[1]->channels())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->height(), bottom[1]->height())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->width(), bottom[1]->width())
+        << "2-th and 4-th should have the same shape.";
+
+    CHECK_EQ(bottom[4]->num(), 1) << "num of 4-th blob should be 1";
+    CHECK_EQ(bottom[4]->channels(), 1) << "channels of 4-th blob should be 1";
+    CHECK_EQ(bottom[4]->width(), 7) << "width of 4-th blob should be 7";
+  }
 }
 
 template <typename Dtype>
 void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
                                       const vector<Blob<Dtype>*>& top) {
   // roi_score
-  // roi
+  // roi_normlized
   // label
+  // roi
   // detection_out
   num_roi_ = bottom[0]->num();
   CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
@@ -51,11 +69,23 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   reserve_size_ = num_img_ * num_cls_;
 
   if (bottom.size() == 4) {
+    LOG(FATAL) << "bottom size wrong.";
+  } else if (bottom.size() == 5) {
     CHECK_EQ(top.size(), 2) << "top size should be 2.";
-    CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";
-    CHECK_EQ(bottom[3]->channels(), 1) << "channels of 4-th blob should be 1";
-    num_det_ = bottom[3]->height();
-    CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
+
+    CHECK_EQ(bottom[3]->num(), bottom[1]->num())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->channels(), bottom[1]->channels())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->height(), bottom[1]->height())
+        << "2-th and 4-th should have the same shape.";
+    CHECK_EQ(bottom[3]->width(), bottom[1]->width())
+        << "2-th and 4-th should have the same shape.";
+
+    CHECK_EQ(bottom[4]->num(), 1) << "num of 4-th blob should be 1";
+    CHECK_EQ(bottom[4]->channels(), 1) << "channels of 4-th blob should be 1";
+    num_det_ = bottom[4]->height();
+    CHECK_EQ(bottom[4]->width(), 7) << "width of 4-th blob should be 7";
 
     vector<int> roi_det_shape(2);
     roi_det_shape[0] = num_roi_;
@@ -74,7 +104,7 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 // void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 // const vector<Blob<Dtype>*>& top) {
-void PseudoLabelLayer<Dtype>::top1forward(const vector<Blob<Dtype>*>& bottom,
+void PseudoLabelLayer<Dtype>::top0forward(const vector<Blob<Dtype>*>& bottom,
                                           const vector<Blob<Dtype>*>& top) {
   const Dtype* score_data = bottom[0]->cpu_data();
   const Dtype* roi_data = bottom[1]->cpu_data();
@@ -147,15 +177,16 @@ void PseudoLabelLayer<Dtype>::top1forward(const vector<Blob<Dtype>*>& bottom,
 }
 
 template <typename Dtype>
+void PseudoLabelLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
+                                          const vector<Blob<Dtype>*>& top) {
+  NOT_IMPLEMENTED;
+}
+
+template <typename Dtype>
 void PseudoLabelLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                                            const vector<bool>& propagate_down,
                                            const vector<Blob<Dtype>*>& bottom) {
-  for (size_t i = 0; i < bottom.size(); i++) {
-    if (propagate_down[i]) {
-      caffe_set(bottom[i]->count(), static_cast<Dtype>(0),
-                bottom[i]->mutable_cpu_diff());
-    }
-  }
+  NOT_IMPLEMENTED;
 }
 
 INSTANTIATE_CLASS(PseudoLabelLayer);
