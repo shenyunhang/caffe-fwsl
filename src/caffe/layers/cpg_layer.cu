@@ -573,9 +573,6 @@ template <typename Dtype>
 void CPGLayer<Dtype>::After() {
   pass_im_ += num_im_;
 
-  if (max_num_im_cpg_ > 0 && max_num_im_cpg_ <= pass_im_) {
-    is_cpg_ = false;
-  }
 
   accum_im_ += num_im_;
   accum_gt_ += gt_class_.size();
@@ -593,6 +590,9 @@ void CPGLayer<Dtype>::After() {
 template <typename Dtype>
 void CPGLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype> *> &bottom,
                                   const vector<Blob<Dtype> *> &top) {
+  if (max_num_im_cpg_ >= 0 && max_num_im_cpg_ <= pass_im_) {
+    is_cpg_ = false;
+  }
   if (!is_cpg_) {
     return;
   }

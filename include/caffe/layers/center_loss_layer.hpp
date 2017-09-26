@@ -53,7 +53,6 @@ class CenterLossLayer : public LossLayer<Dtype> {
   bool debug_info_;
   int num_center_;
   int top_k_;
-  int display_;
   int update_;
   Dtype lr_;
 
@@ -72,6 +71,11 @@ class CenterLossLayer : public LossLayer<Dtype> {
   Dtype accum_loss_;
   int total_iter_;
   vector<vector<int> > accum_update_class_;
+
+  bool is_center_;
+  int display_;
+  int pass_im_;
+  int max_num_im_center_;
 };
 
 }  // namespace caffe

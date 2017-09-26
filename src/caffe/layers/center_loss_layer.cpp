@@ -16,8 +16,10 @@ void CenterLossLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   top_k_ = this->layer_param_.center_loss_param().top_k();
   lr_ = this->layer_param_.center_loss_param().lr();
   debug_info_ = this->layer_param_.center_loss_param().debug_info();
-  display_ = this->layer_param_.center_loss_param().display();
   update_ = this->layer_param_.center_loss_param().update();
+  display_ = this->layer_param_.center_loss_param().display();
+  max_num_im_center_ = this->layer_param_.center_loss_param().max_num_im_center();
+  is_center_=true;
 
   dim_ = bottom[0]->channels() * bottom[0]->height() * bottom[0]->width();
   num_class_ = bottom[1]->channels();
@@ -37,6 +39,7 @@ void CenterLossLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     }
   }
 
+  pass_im_=0;
   accum_loss_ = 0;
   total_iter_ = 0;
 

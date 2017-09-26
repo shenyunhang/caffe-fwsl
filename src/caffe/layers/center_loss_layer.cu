@@ -9,6 +9,12 @@ namespace caffe {
 template <typename Dtype>
 void CenterLossLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                          const vector<Blob<Dtype>*>& top) {
+  if (max_num_im_center_ >= 0 && max_num_im_center_ <= pass_im_) {
+    is_center_ = false;
+  }
+  if (!is_center_) {
+    return;
+  }
   LOG_IF(INFO, debug_info_) << "    [Forward] ";
   const Dtype* label_data = bottom[1]->cpu_data();
   const Dtype* score_data = bottom[2]->cpu_data();
@@ -102,12 +108,24 @@ void CenterLossLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                             << diff_.asum_data();
   LOG_IF(INFO, debug_info_) << this->blobs_[0]->asum_diff() << " "
                             << diff_.asum_diff();
+
+  pass_im_ += bottom[1]->num();
 }
 
 template <typename Dtype>
 void CenterLossLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
                                           const vector<bool>& propagate_down,
                                           const vector<Blob<Dtype>*>& bottom) {
+  if (!is_center_) {
+    for (size_t i = 0; i < bottom.size(); i++) {
+      if (propagate_down[i]) {
+        caffe_gpu_set(bottom[i]->count(), static_cast<Dtype>(0),
+                      bottom[i]->mutable_gpu_diff());
+      }
+    }
+    return;
+  }
+
   LOG_IF(INFO, debug_info_) << "    [Backward] ";
   if (!propagate_down[0]) return;
 

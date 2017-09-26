@@ -1754,7 +1754,7 @@ message CPGParameter {
     CRF = 2;
   }
   optional bool is_cpg = 1 [default = true];
-  optional int32 max_num_im_cpg = 2 [default = 0];
+  optional int32 max_num_im_cpg = 2 [default = -1];
   optional bool is_contrast = 3 [default = false];
   optional bool is_order = 4 [default = false];
   optional bool debug_info = 5 [default = false];
@@ -1891,6 +1891,7 @@ message CenterLossParameter {
   optional uint32 num_center = 5 [default = 1];
   optional uint32 display = 6 [default = 1280];
   optional uint32 update = 7 [default = 128];
+  optional int32 max_num_im_center = 8 [default = -1];
 }
 
 // DEPRECATED: use LayerParameter.
