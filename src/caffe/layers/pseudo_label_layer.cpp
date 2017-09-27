@@ -19,21 +19,12 @@ void PseudoLabelLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << "channels not consist.";
   CHECK_EQ(bottom[2]->num_axes(), 2) << "shape missmatch.";
 
-  if (bottom.size() == 5) {
+  if (bottom.size() == 4) {
     CHECK_EQ(top.size(), 2) << "top size should be 2.";
 
-    CHECK_EQ(bottom[3]->num(), bottom[1]->num())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->channels(), bottom[1]->channels())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->height(), bottom[1]->height())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->width(), bottom[1]->width())
-        << "2-th and 4-th should have the same shape.";
-
-    CHECK_EQ(bottom[4]->num(), 1) << "num of 4-th blob should be 1";
-    CHECK_EQ(bottom[4]->channels(), 1) << "channels of 4-th blob should be 1";
-    CHECK_EQ(bottom[4]->width(), 7) << "width of 4-th blob should be 7";
+    CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";
+    CHECK_EQ(bottom[3]->channels(), 1) << "channels of 4-th blob should be 1";
+    CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
   }
 }
 
@@ -43,7 +34,6 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // roi_score
   // roi_normlized
   // label
-  // roi
   // detection_out
   num_roi_ = bottom[0]->num();
   CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
@@ -69,23 +59,12 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   reserve_size_ = num_img_ * num_cls_;
 
   if (bottom.size() == 4) {
-    LOG(FATAL) << "bottom size wrong.";
-  } else if (bottom.size() == 5) {
     CHECK_EQ(top.size(), 2) << "top size should be 2.";
 
-    CHECK_EQ(bottom[3]->num(), bottom[1]->num())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->channels(), bottom[1]->channels())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->height(), bottom[1]->height())
-        << "2-th and 4-th should have the same shape.";
-    CHECK_EQ(bottom[3]->width(), bottom[1]->width())
-        << "2-th and 4-th should have the same shape.";
-
-    CHECK_EQ(bottom[4]->num(), 1) << "num of 4-th blob should be 1";
-    CHECK_EQ(bottom[4]->channels(), 1) << "channels of 4-th blob should be 1";
-    num_det_ = bottom[4]->height();
-    CHECK_EQ(bottom[4]->width(), 7) << "width of 4-th blob should be 7";
+    CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";
+    CHECK_EQ(bottom[3]->channels(), 1) << "channels of 4-th blob should be 1";
+    num_det_ = bottom[3]->height();
+    CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
 
     vector<int> roi_det_shape(2);
     roi_det_shape[0] = num_roi_;

@@ -467,6 +467,18 @@ void DetectionOutputLayer<Dtype>::Forward_cpu(
   }
 }
 
+template <typename Dtype>
+void DetectionOutputLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
+                                           const vector<bool>& propagate_down,
+                                           const vector<Blob<Dtype>*>& bottom) {
+  for (size_t i = 0; i < bottom.size(); i++) {
+    if (propagate_down[i]) {
+      caffe_set(bottom[i]->count(), static_cast<Dtype>(0),
+                bottom[i]->mutable_cpu_diff());
+    }
+  }
+}
+
 #ifdef CPU_ONLY
 STUB_GPU_FORWARD(DetectionOutputLayer, Forward);
 #endif

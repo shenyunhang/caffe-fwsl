@@ -27,7 +27,7 @@ class PseudoLabelLayer : public Layer<Dtype> {
 
   virtual inline const char* type() const { return "PseudoLabel"; }
   virtual inline int MinBottomBlobs() const { return 3; }
-  virtual inline int MaxBottomBlobs() const { return 5; }
+  virtual inline int MaxBottomBlobs() const { return 4; }
   virtual inline int MinNumTopBlobs() const { return 1; }
   virtual inline int MaxNumTopBlobs() const { return 2; }
 

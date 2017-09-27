@@ -26,8 +26,8 @@ template <typename Dtype>
 void caffe_gpu_maximum(const int N, const Dtype* const X, const Dtype* const Y,
                        Dtype* const Z) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  maximum_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>
-      (N, X, Y, Z);
+  maximum_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, X,
+                                                                         Y, Z);
 }
 
 template void caffe_gpu_maximum<int>(const int N, const int* const X,
@@ -62,8 +62,7 @@ template <typename Dtype>
 void caffe_gpu_or(const int N, const Dtype* const x, const Dtype* const y,
                   Dtype* const z) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  or_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>
-      (N, x, y, z);
+  or_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, x, y, z);
 }
 
 template void caffe_gpu_or<int>(const int N, const int* const x,
@@ -81,7 +80,7 @@ __global__ void ceil_kernel(const int N, Dtype* const x) {
 template <typename Dtype>
 void caffe_gpu_ceil(const int N, Dtype* const x) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  ceil_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>> (N, x);
+  ceil_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, x);
 }
 
 template void caffe_gpu_ceil<float>(const int N, float* const x);
@@ -95,7 +94,7 @@ __global__ void floor_kernel(const int n, Dtype* const x) {
 template <typename Dtype>
 void caffe_gpu_floor(const int N, Dtype* const x) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  floor_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>> (N, x);
+  floor_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(N, x);
 }
 
 template void caffe_gpu_floor<float>(const int n, float* const x);
@@ -113,8 +112,8 @@ template <typename Dtype>
 void caffe_gpu_without(const int N, Dtype* const x, const Dtype without,
                        const Dtype replace) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  without_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>
-      (N, x, without, replace);
+  without_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N, x, without, replace);
 }
 
 template void caffe_gpu_without<float>(const int N, float* const x,
@@ -154,14 +153,14 @@ void caffe_gpu_threshold(const int N, const Dtype* const x, Dtype* const y,
                          const bool for_max) {
   if (for_max) {
     // NOLINT_NEXT_LINE(whitespace/operators)
-    threshold_max_kernel<Dtype> << <CAFFE_GET_BLOCKS(N),
-                                    CAFFE_CUDA_NUM_THREADS>>>
-        (N, x, y, threshold, replace);
+    threshold_max_kernel<
+        Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+        N, x, y, threshold, replace);
   } else {
     // NOLINT_NEXT_LINE(whitespace/operators)
-    threshold_min_kernel<Dtype> << <CAFFE_GET_BLOCKS(N),
-                                    CAFFE_CUDA_NUM_THREADS>>>
-        (N, x, y, threshold, replace);
+    threshold_min_kernel<
+        Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+        N, x, y, threshold, replace);
   }
 }
 
@@ -190,8 +189,8 @@ template <typename Dtype>
 void caffe_gpu_binary(const int N, const Dtype* const x, Dtype* const y,
                       const Dtype threshold) {
   // NOLINT_NEXT_LINE(whitespace/operators)
-  binary_kernel<Dtype> << <CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>
-      (N, x, y, threshold);
+  binary_kernel<Dtype><<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+      N, x, y, threshold);
 }
 
 template void caffe_gpu_binary<float>(const int N, const float* const x,

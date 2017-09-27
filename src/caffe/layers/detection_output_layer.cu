@@ -299,6 +299,18 @@ void DetectionOutputLayer<Dtype>::Forward_gpu(
   }
 }
 
+template <typename Dtype>
+void DetectionOutputLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
+                                           const vector<bool>& propagate_down,
+                                           const vector<Blob<Dtype>*>& bottom) {
+  for (size_t i = 0; i < bottom.size(); i++) {
+    if (propagate_down[i]) {
+      caffe_set(bottom[i]->count(), static_cast<Dtype>(0),
+                bottom[i]->mutable_cpu_diff());
+    }
+  }
+}
+
 INSTANTIATE_LAYER_GPU_FUNCS(DetectionOutputLayer);
 
 }  // namespace caffe
