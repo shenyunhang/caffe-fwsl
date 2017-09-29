@@ -516,6 +516,7 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
     const map<int, int>& num_pos = all_num_pos.find(i)->second;
     map<int, float> APs;
     float mAP = 0.;
+    float recall = 0.;
     std::stringstream APs_string;
     // Sort true_pos and false_pos with descend scores.
     for (map<int, int>::const_iterator it = num_pos.begin();
@@ -539,17 +540,22 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
                 param_.ap_version(), &prec, &rec, &(APs[label]));
       mAP += APs[label];
       if (param_.show_per_class_result()) {
-        LOG(INFO) << "class" << label << ": " << APs[label];
+        LOG(INFO) << "AP for label " << label << ": " << APs[label];
+	LOG(INFO) << "Recall for label " << label << ": " << rec[rec.size() - 1];
       }
       int ap = round(APs[label] * 10000);
       APs_string << "&" << ap / 100 << "." << ap % 100 / 10 << ap % 10 << "\t";
+      recall += rec[rec.size() - 1];
     }
     mAP /= num_pos.size();
+    recall /= num_pos.size();
     const int output_blob_index = test_net->output_blob_indices()[i];
     const string& output_name = test_net->blob_names()[output_blob_index];
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
               << mAP;
     LOG(INFO) << APs_string.str();
+    LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
+              << recall;
   }
 }
 

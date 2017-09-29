@@ -1,4 +1,6 @@
+#include <boost/filesystem.hpp>
 #include <cfloat>
+#include <opencv2/opencv.hpp>
 #include <vector>
 
 #include "caffe/layers/pseudo_label_layer.hpp"
@@ -6,6 +8,278 @@
 #include "caffe/util/more_math_functions.hpp"
 
 namespace caffe {
+
+template <typename Dtype>
+void Show_blob(const Dtype* data, const int channels, const int height,
+               const int width, const string save_path,
+               const string save_path_jet, const float threshold_ratio,
+               const bool radioactive = false, const int fill = 0) {
+  int rec_size = max(height, width) * 0.01;
+  Dtype maxval = caffe_cpu_max_element(channels * height * width, data);
+  Dtype sum = caffe_cpu_sum(channels * height * width, data);
+  Dtype mean = sum / channels / height / width;
+
+  Dtype threshold_value;
+  if (threshold_ratio >= 0) {
+    threshold_value = maxval * threshold_ratio;
+  } else {
+    threshold_value = sum / channels / height / width;
+  }
+  Dtype scale_factor = 255.0 / threshold_value;
+
+  //-----------------------------------------------------------------------
+  cv::Mat img_mat;
+  cv::Mat img_mat_jet;
+  if (channels == 3) {
+    img_mat = cv::Mat(height, width, CV_8UC3);
+  } else if (channels == 1) {
+    img_mat = cv::Mat(height, width, CV_8UC1);
+  } else {
+    LOG(FATAL) << "channels should 1 or 3";
+  }
+
+  uchar* img_mat_data = img_mat.data;
+  for (int c = 0; c < channels; c++) {
+    for (int h = 0; h < height; h++) {
+      for (int w = 0; w < width; w++) {
+        int index = (c * height + h) * width + w;
+        int index_mat = (h * width + w) * channels + c;
+        Dtype value = abs(data[index]);
+        // Dtype value = data[index] > 0 ? data[index] : 0;
+        if (value >= threshold_value) {
+          img_mat_data[index_mat] = 255;
+          //-----------------------------------------------------------------------
+          if (radioactive) {
+            for (int cc = 0; cc < channels; cc++) {
+              for (int hh = std::max(h - rec_size, 0);
+                   hh < std::min(h + rec_size, height); ++hh) {
+                for (int ww = std::max(w - rec_size, 0);
+                     ww < std::min(w + rec_size, width); ++ww) {
+                  int index_mat_r = (hh * width + ww) * channels + cc;
+                  img_mat_data[index_mat_r] = 255;
+
+                  // int index_r = (cc * height + hh) * width + ww;
+                  // Dtype value_r = abs(data[index_r]);
+                  // if (value_r > threshold_value) {
+                  // for (int ccc = 0; ccc < channels; ccc++) {
+                  // for (int hhh = min(h, hh); hhh <= std::max(h, hh); ++hhh) {
+                  // for (int www = min(w, ww); www <= std::max(w, ww); ++www) {
+                  // int index_mat_r =
+                  //(hhh * width + www) * channels + ccc;
+                  // img_mat_data[index_mat_r] = 255;
+                  //}
+                  //}
+                  //}
+                  //}
+                }
+              }
+            }
+          }
+          //-----------------------------------------------------------------------
+        } else {
+          if (fill >= 0) {
+            img_mat_data[index_mat] = fill;
+          } else {
+            img_mat_data[index_mat] = scale_factor * value;
+          }
+        }
+      }
+    }
+  }
+
+  cv::imwrite(save_path, img_mat);
+  LOG(INFO) << "radioactive: " << radioactive
+            << " threshold_ratio: " << threshold_ratio
+            << " threshold_value: " << threshold_value << " maxval: " << maxval
+            << " mean: " << mean;
+  LOG(INFO) << "save_path: " << save_path;
+
+  // cv::applyColorMap(img_mat, img_mat_jet, cv::COLORMAP_JET);
+  // cv::imwrite(save_path_jet, img_mat_jet);
+
+  //-----------------------------------------------------------------------
+
+  //-----------------------------------------------------------------------
+  // show the distubution of cpg_blob data
+  // int total[26];
+  // for (int i = 0; i < 26; ++i) {
+  // total[i] = 0;
+  //}
+  // for (int e = 0; e < channels * height * width; e++) {
+  // int level = int(data[e] / 10);
+  // total[level]++;
+  //}
+  // for (int i = 0; i < 26; ++i) {
+  // std::cout << i << ":" << total[i] << " ";
+  //}
+  // std::cout << std::endl;
+  ////-----------------------------------------------------------------------
+}
+
+template <typename Dtype>
+void vis_roi(const Blob<Dtype>* roi_blob, const Blob<Dtype>* roi_score_blob,
+             const Blob<Dtype>* img_blob, Blob<Dtype>& score_map,
+             int save_id_) {
+  stringstream save_dir;
+  save_dir << "tmp/";
+  boost::filesystem::create_directories(save_dir.str());
+
+  const int num_roi = roi_blob->num();
+  const int num_cls = roi_score_blob->channels();
+  const int num_img = img_blob->num();
+  const int channels_img = img_blob->channels();
+  const int height_img = img_blob->height();
+  const int width_img = img_blob->width();
+  vector<int> score_map_shape(3);
+  score_map_shape[0] = channels_img;
+  score_map_shape[1] = height_img;
+  score_map_shape[2] = width_img;
+  score_map.Reshape(score_map_shape);
+
+  const Dtype* roi_data = roi_blob->cpu_data();
+  const Dtype* roi_score_data = roi_score_blob->cpu_data();
+  for (int i = 0; i < num_img; i++) {
+    caffe_set(score_map.count(), Dtype(0.0), score_map.mutable_cpu_data());
+    Dtype* map_data = score_map.mutable_cpu_data();
+    for (int r = 0; r < num_roi; r++) {
+      // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
+      const Dtype* roi = roi_data + r * 5;
+
+      if (i != roi[0]) {
+        continue;
+      }
+      const Dtype* roi_score = roi_score_data + r * num_cls;
+      roi += 1;
+      for (int x = roi[0] * width_img; x <= roi[2] * width_img; x++) {
+        for (int y = roi[1] * height_img; y <= roi[3] * height_img; y++) {
+          if (x < 0 || x >= width_img || y < 0 || y >= height_img) {
+            continue;
+          }
+          for (int c = 0; c < num_cls; c++) {
+            map_data[y * width_img + x] += roi_score[c];
+          }
+        }
+      }
+    }
+
+    stringstream save_path;
+    stringstream save_path_jet;
+    save_path << save_dir.str() << save_id_ << "_roi_score.png";
+    save_path_jet << save_dir.str() << save_id_ << "_jet_roi_score.png";
+    Show_blob(score_map.cpu_data(), 1, height_img, width_img, save_path.str(),
+              save_path_jet.str(), 1, false, -1);
+
+    caffe_set(score_map.count(), Dtype(0.0), score_map.mutable_cpu_data());
+    map_data = score_map.mutable_cpu_data();
+    const Dtype* image_data = img_blob->cpu_data();
+    for (int h = 0; h < height_img; h++) {
+      for (int w = 0; w < width_img; w++) {
+        map_data[(0 * height_img + h) * width_img + w] =
+            image_data[(0 * height_img + h) * width_img + w] + 103;
+        map_data[(1 * height_img + h) * width_img + w] =
+            image_data[(1 * height_img + h) * width_img + w] + 116;
+        map_data[(2 * height_img + h) * width_img + w + 0] =
+            image_data[(2 * height_img + h) * width_img + w] + 124;
+      }
+    }
+
+    save_path.str(std::string());
+    save_path_jet.str(std::string());
+    save_path << save_dir.str() << save_id_ << ".png";
+    save_path_jet << save_dir.str() << save_id_ << "_jet.png";
+    Show_blob(score_map.cpu_data(), channels_img, height_img, width_img,
+              save_path.str(), save_path_jet.str(), 1, false, -1);
+
+    for (int r = 0; r < num_roi; r++) {
+      // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
+      const Dtype* roi = roi_data + r * 5;
+
+      if (i != roi[0]) {
+        continue;
+      }
+      roi += 1;
+      for (int x = roi[0] * width_img; x <= roi[2] * width_img; x++) {
+        for (int y = roi[1] * height_img; y <= roi[1] * height_img; y++) {
+          if (x < 0 || x >= width_img || y < 0 || y >= height_img) {
+            continue;
+          }
+          map_data[(0 * height_img + y) * width_img + x] = 0;
+          map_data[(1 * height_img + y) * width_img + x] = 0;
+          map_data[(2 * height_img + y) * width_img + x] = 255;
+        }
+        for (int y = roi[3] * height_img; y <= roi[3] * height_img; y++) {
+          if (x < 0 || x >= width_img || y < 0 || y >= height_img) {
+            continue;
+          }
+          map_data[(0 * height_img + y) * width_img + x] = 0;
+          map_data[(1 * height_img + y) * width_img + x] = 0;
+          map_data[(2 * height_img + y) * width_img + x] = 255;
+        }
+      }
+      for (int y = roi[1] * height_img; y <= roi[3] * height_img; y++) {
+        for (int x = roi[0] * width_img; x <= roi[0] * width_img; x++) {
+          if (x < 0 || x >= width_img || y < 0 || y >= height_img) {
+            continue;
+          }
+          map_data[(0 * height_img + y) * width_img + x] = 0;
+          map_data[(1 * height_img + y) * width_img + x] = 0;
+          map_data[(2 * height_img + y) * width_img + x] = 255;
+        }
+        for (int x = roi[2] * width_img; x <= roi[2] * width_img; x++) {
+          if (x < 0 || x >= width_img || y < 0 || y >= height_img) {
+            continue;
+          }
+          map_data[(0 * height_img + y) * width_img + x] = 0;
+          map_data[(1 * height_img + y) * width_img + x] = 0;
+          map_data[(2 * height_img + y) * width_img + x] = 255;
+        }
+      }
+    }
+
+    save_path.str(std::string());
+    save_path_jet.str(std::string());
+    save_path << save_dir.str() << save_id_ << "_roi_roi.png";
+    save_path_jet << save_dir.str() << save_id_ << "_jet_roi_roi.png";
+    Show_blob(score_map.cpu_data(), channels_img, height_img, width_img,
+              save_path.str(), save_path_jet.str(), 1, false, -1);
+
+    save_id_++;
+  }
+}
+
+template <typename Dtype>
+void vis_roi_score(const Blob<Dtype>* roi_score_blob, Blob<Dtype>& score_map,
+                   int save_id_) {
+  stringstream save_dir;
+  save_dir << "tmp/";
+  boost::filesystem::create_directories(save_dir.str());
+
+  const int num_roi = roi_score_blob->num();
+  const int num_cls = roi_score_blob->channels();
+  vector<int> score_map_shape(2);
+  score_map_shape[0] = num_roi;
+  score_map_shape[1] = num_cls;
+  score_map.Reshape(score_map_shape);
+
+  const Dtype* roi_score_data = roi_score_blob->cpu_data();
+  caffe_set(score_map.count(), Dtype(0.0), score_map.mutable_cpu_data());
+  Dtype* map_data = score_map.mutable_cpu_data();
+  for (int r = 0; r < num_roi; r++) {
+    const Dtype* roi_score = roi_score_data + r * num_cls;
+    // LOG(INFO) << det[0] << " " << det[1] << " " << det[2] << " " << det[3]
+    //<< " " << det[4] << " " << det[5] << " " << det[6];
+    for (int c = 0; c < num_cls; c++) {
+      map_data[r * num_cls + c] = roi_score[c];
+    }
+  }
+
+  stringstream save_path;
+  stringstream save_path_jet;
+  save_path << save_dir.str() << save_id_ << "_score.png";
+  save_path_jet << save_dir.str() << save_id_ << "_jet_score.png";
+  Show_blob(score_map.cpu_data(), 1, num_roi, num_cls, save_path.str(),
+            save_path_jet.str(), 1, false, -1);
+}
 
 template <typename Dtype>
 __global__ void Get_roi_det_blob(const int nthreads, const Dtype* roi_data,
@@ -117,8 +391,8 @@ void PseudoLabelLayer<Dtype>::top1forward(const vector<Blob<Dtype>*>& bottom,
     }
   }
 
-  // caffe_gpu_powx(top[1]->count(), top[1]->gpu_data(), Dtype(0.5),
-  // top[1]->mutable_gpu_data());
+  caffe_gpu_powx(top[1]->count(), top[1]->gpu_data(), Dtype(0.5),
+                 top[1]->mutable_gpu_data());
 
   // LOG(INFO) << "maxval: " << maxval;
   // LOG(INFO) << "top[1]: " << top[1]->asum_data();
@@ -130,9 +404,13 @@ template <typename Dtype>
 void PseudoLabelLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
                                           const vector<Blob<Dtype>*>& top) {
   top0forward(bottom, top);
-  if (bottom.size() == 4) {
+  if (bottom.size() == 5) {
     top1forward(bottom, top);
   }
+
+  vis_roi(bottom[1], bottom[0], bottom[3], score_map_, save_id_);
+  vis_roi_score(bottom[0], score_map_, save_id_);
+  save_id_ += num_img_;
 }
 
 template <typename Dtype>

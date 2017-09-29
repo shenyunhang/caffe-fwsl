@@ -19,13 +19,14 @@ void PseudoLabelLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << "channels not consist.";
   CHECK_EQ(bottom[2]->num_axes(), 2) << "shape missmatch.";
 
-  if (bottom.size() == 4) {
+  if (bottom.size() == 5) {
     CHECK_EQ(top.size(), 2) << "top size should be 2.";
 
     CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";
     CHECK_EQ(bottom[3]->channels(), 1) << "channels of 4-th blob should be 1";
     CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
   }
+  save_id_ = 0;
 }
 
 template <typename Dtype>
@@ -35,6 +36,8 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // roi_normlized
   // label
   // detection_out
+  // data
+
   num_roi_ = bottom[0]->num();
   CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
 
@@ -58,7 +61,7 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // 假设每张图像每个类别有一个GT
   reserve_size_ = num_img_ * num_cls_;
 
-  if (bottom.size() == 4) {
+  if (bottom.size() == 5) {
     CHECK_EQ(top.size(), 2) << "top size should be 2.";
 
     CHECK_EQ(bottom[3]->num(), 1) << "num of 4-th blob should be 1";

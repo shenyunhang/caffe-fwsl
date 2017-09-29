@@ -218,7 +218,7 @@ void Show_blob(const Dtype *data, const int channels, const int height,
   Dtype mean = sum / channels / height / width;
 
   Dtype threshold_value;
-  if (threshold_ratio > 0) {
+  if (threshold_ratio >= 0) {
     threshold_value = maxval * threshold_ratio;
   } else {
     threshold_value = sum / channels / height / width;
