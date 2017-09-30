@@ -36,6 +36,16 @@ class PseudoLabelLayer : public Layer<Dtype> {
                             const vector<bool>& propagate_down,
                             const vector<Blob<Dtype>*>& bottom);
 
+  void Show_blob(const Dtype* data, const int channels, const int height,
+                 const int width, const string save_path,
+                 const string save_path_jet, const float threshold_ratio,
+                 const int fill = 0);
+  void vis_roi(const Blob<Dtype>* roi_blob, const Blob<Dtype>* roi_score_blob,
+               const Blob<Dtype>* img_blob, Blob<Dtype>& score_map,
+               int save_id_);
+  void vis_roi_score(const Blob<Dtype>* roi_score_blob, Blob<Dtype>& score_map,
+                     int save_id_);
+
   void top0forward(const vector<Blob<Dtype>*>& bottom,
                    const vector<Blob<Dtype>*>& top);
   void top1forward(const vector<Blob<Dtype>*>& bottom,

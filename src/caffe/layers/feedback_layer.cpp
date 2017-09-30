@@ -10,11 +10,12 @@
 namespace caffe {
 
 template <typename Dtype>
-void Show_blob(const Dtype* data, const int channels, const int height,
-               const int width, const string save_path,
-               const string save_path_jet, const float threshold_ratio,
-               const bool radioactive = false, const int fill = 0) {
-  int rec_size = std::max(height, width) * 0.01;
+void FeedbackLayer<Dtype>::Show_blob(const Dtype* data, const int channels,
+                                     const int height, const int width,
+                                     const string save_path,
+                                     const string save_path_jet,
+                                     const float threshold_ratio,
+                                     const int fill) {
   Dtype maxval = caffe_cpu_max_element(channels * height * width, data);
   Dtype sum = caffe_cpu_sum(channels * height * width, data);
   Dtype mean = sum / channels / height / width;
@@ -35,7 +36,7 @@ void Show_blob(const Dtype* data, const int channels, const int height,
   } else if (channels == 1) {
     img_mat = cv::Mat(height, width, CV_8UC1);
   } else {
-    LOG(FATAL) << "channels should 1 or 3";
+    LOG(FATAL) << "channels should be 1 or 3";
   }
 
   uchar* img_mat_data = img_mat.data;
@@ -44,38 +45,10 @@ void Show_blob(const Dtype* data, const int channels, const int height,
       for (int w = 0; w < width; w++) {
         int index = (c * height + h) * width + w;
         int index_mat = (h * width + w) * channels + c;
-        Dtype value = abs(data[index]);
+        Dtype value = fabs(data[index]);
         // Dtype value = data[index] > 0 ? data[index] : 0;
         if (value >= threshold_value) {
           img_mat_data[index_mat] = 255;
-          //-----------------------------------------------------------------------
-          if (radioactive) {
-            for (int cc = 0; cc < channels; cc++) {
-              for (int hh = std::max(h - rec_size, 0);
-                   hh < std::min(h + rec_size, height); ++hh) {
-                for (int ww = std::max(w - rec_size, 0);
-                     ww < std::min(w + rec_size, width); ++ww) {
-                  int index_mat_r = (hh * width + ww) * channels + cc;
-                  img_mat_data[index_mat_r] = 255;
-
-                  // int index_r = (cc * height + hh) * width + ww;
-                  // Dtype value_r = abs(data[index_r]);
-                  // if (value_r > threshold_value) {
-                  // for (int ccc = 0; ccc < channels; ccc++) {
-                  // for (int hhh = min(h, hh); hhh <= std::max(h, hh); ++hhh) {
-                  // for (int www = min(w, ww); www <= std::max(w, ww); ++www) {
-                  // int index_mat_r =
-                  //(hhh * width + www) * channels + ccc;
-                  // img_mat_data[index_mat_r] = 255;
-                  //}
-                  //}
-                  //}
-                  //}
-                }
-              }
-            }
-          }
-          //-----------------------------------------------------------------------
         } else {
           if (fill >= 0) {
             img_mat_data[index_mat] = fill;
@@ -83,15 +56,17 @@ void Show_blob(const Dtype* data, const int channels, const int height,
             img_mat_data[index_mat] = scale_factor * value;
           }
         }
+        //LOG(INFO) << "c: " << c << " h: " << h << " w: " << w << " data: "
+                  //<< data[index] << " value: " << value
+                  //<< " img_mat_data: " << img_mat_data[index_mat];
       }
     }
   }
 
   cv::imwrite(save_path, img_mat);
-  LOG(INFO) << "radioactive: " << radioactive
-            << " threshold_ratio: " << threshold_ratio
+  LOG(INFO) << " threshold_ratio: " << threshold_ratio
             << " threshold_value: " << threshold_value << " maxval: " << maxval
-            << " mean: " << mean;
+            << " mean: " << mean << " scale_factor: " << scale_factor;
   LOG(INFO) << "save_path: " << save_path;
 
   // cv::applyColorMap(img_mat, img_mat_jet, cv::COLORMAP_JET);
@@ -117,8 +92,9 @@ void Show_blob(const Dtype* data, const int channels, const int height,
 }
 
 template <typename Dtype>
-void vis_det(const Blob<Dtype>* det_blob, const Blob<Dtype>* img_blob,
-             Blob<Dtype>& score_map, int save_id_) {
+void FeedbackLayer<Dtype>::vis_det(const Blob<Dtype>* det_blob,
+                                   const Blob<Dtype>* img_blob,
+                                   Blob<Dtype>& score_map, int save_id_) {
   stringstream save_dir;
   save_dir << "tmp/";
   boost::filesystem::create_directories(save_dir.str());
@@ -145,6 +121,9 @@ void vis_det(const Blob<Dtype>* det_blob, const Blob<Dtype>* img_blob,
       if (i != det[0]) {
         continue;
       }
+      LOG(INFO) << "d: " << d << " " << det[0] << " " << det[1] << " " << det[2]
+                << " " << det[3] * width_img << " " << det[4] * height_img
+                << " " << det[5] * width_img << " " << det[6] * height_img;
       const Dtype det_score = det[2];
       det += 3;
       for (int x = det[0] * width_img; x <= det[2] * width_img; x++) {
@@ -162,7 +141,7 @@ void vis_det(const Blob<Dtype>* det_blob, const Blob<Dtype>* img_blob,
     save_path << save_dir.str() << save_id_ << "_det_score.png";
     save_path_jet << save_dir.str() << save_id_ << "_jet_det_score.png";
     Show_blob(score_map.cpu_data(), 1, height_img, width_img, save_path.str(),
-              save_path_jet.str(), 1, false, -1);
+              save_path_jet.str(), 1, -1);
 
     caffe_set(score_map.count(), Dtype(0.0), score_map.mutable_cpu_data());
     map_data = score_map.mutable_cpu_data();
@@ -183,7 +162,7 @@ void vis_det(const Blob<Dtype>* det_blob, const Blob<Dtype>* img_blob,
     save_path << save_dir.str() << save_id_ << ".png";
     save_path_jet << save_dir.str() << save_id_ << "_jet.png";
     Show_blob(score_map.cpu_data(), channels_img, height_img, width_img,
-              save_path.str(), save_path_jet.str(), 1, false, -1);
+              save_path.str(), save_path_jet.str(), 1, -1);
 
     for (int d = 0; d < num_det; d++) {
       //[image_id, label, confidence, xmin, ymin, xmax, ymax]
@@ -236,7 +215,7 @@ void vis_det(const Blob<Dtype>* det_blob, const Blob<Dtype>* img_blob,
     save_path << save_dir.str() << save_id_ << "_det_roi.png";
     save_path_jet << save_dir.str() << save_id_ << "_jet_det_roi.png";
     Show_blob(score_map.cpu_data(), channels_img, height_img, width_img,
-              save_path.str(), save_path_jet.str(), 1, false, -1);
+              save_path.str(), save_path_jet.str(), 1, -1);
 
     save_id_++;
   }
