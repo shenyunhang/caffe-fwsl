@@ -20,7 +20,7 @@ class FeedbackLayer : public Layer<Dtype> {
 
   virtual inline const char* type() const { return "Feedback"; }
   virtual inline int ExactNumBottomBlobs() const { return 2; }
-  virtual inline int ExactNumTopBlobs() const { return 3; }
+  virtual inline int ExactNumTopBlobs() const { return 4; }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -42,6 +42,10 @@ class FeedbackLayer : public Layer<Dtype> {
                Blob<Dtype>& score_map, int save_id_);
 
   int num_img_;
+  int channels_img_;
+  int height_img_;
+  int width_img_;
+
   int num_det_;
 
   Blob<Dtype> score_map_;

@@ -382,9 +382,11 @@ void PseudoLabelLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     top1forward(bottom, top);
   }
 
-  vis_roi(bottom[1], bottom[0], bottom[3], score_map_, save_id_);
-  vis_roi_score(bottom[0], score_map_, save_id_);
-  save_id_ += num_img_;
+  if (false) {
+    vis_roi(bottom[1], bottom[0], bottom[3], score_map_, save_id_);
+    vis_roi_score(bottom[0], score_map_, save_id_);
+    save_id_ += num_img_;
+  }
 }
 
 template <typename Dtype>

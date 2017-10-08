@@ -56,9 +56,9 @@ void FeedbackLayer<Dtype>::Show_blob(const Dtype* data, const int channels,
             img_mat_data[index_mat] = scale_factor * value;
           }
         }
-        //LOG(INFO) << "c: " << c << " h: " << h << " w: " << w << " data: "
-                  //<< data[index] << " value: " << value
-                  //<< " img_mat_data: " << img_mat_data[index_mat];
+        // LOG(INFO) << "c: " << c << " h: " << h << " w: " << w << " data: "
+        //<< data[index] << " value: " << value
+        //<< " img_mat_data: " << img_mat_data[index_mat];
       }
     }
   }
@@ -121,9 +121,10 @@ void FeedbackLayer<Dtype>::vis_det(const Blob<Dtype>* det_blob,
       if (i != det[0]) {
         continue;
       }
-      LOG(INFO) << "d: " << d << " " << det[0] << " " << det[1] << " " << det[2]
-                << " " << det[3] * width_img << " " << det[4] * height_img
-                << " " << det[5] * width_img << " " << det[6] * height_img;
+      // LOG(INFO) << "d: " << d << " " << det[0] << " " << det[1] << " " <<
+      // det[2]
+      //<< " " << det[3] * width_img << " " << det[4] * height_img
+      //<< " " << det[5] * width_img << " " << det[6] * height_img;
       const Dtype det_score = det[2];
       det += 3;
       for (int x = det[0] * width_img; x <= det[2] * width_img; x++) {
@@ -224,8 +225,6 @@ void FeedbackLayer<Dtype>::vis_det(const Blob<Dtype>* det_blob,
 template <typename Dtype>
 void FeedbackLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                                       const vector<Blob<Dtype>*>& top) {
-  CHECK_EQ(top.size(), 3) << "top size should be 3.";
-
   CHECK_EQ(bottom[0]->num(), 1) << "num of 1-th blob should be 1";
   CHECK_EQ(bottom[0]->channels(), 1) << "channels of 1-th blob should be 1";
   CHECK_EQ(bottom[0]->width(), 7) << "width of 1-th blob should be 7";
@@ -239,29 +238,38 @@ void FeedbackLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // detection_out
   // data
 
-  // roi_normlized
+  // roi
+  // roi_normalized
   // roi_score
   // roi_num
-
-  CHECK_EQ(top.size(), 3) << "top size should be 3.";
 
   CHECK_EQ(bottom[0]->num(), 1) << "num of 1-th blob should be 1";
   CHECK_EQ(bottom[0]->channels(), 1) << "channels of 1-th blob should be 1";
   num_det_ = bottom[0]->height();
   CHECK_EQ(bottom[0]->width(), 7) << "width of 1-th blob should be 7";
 
+  num_img_ = bottom[1]->num();
+  channels_img_ = bottom[1]->channels();
+  height_img_ = bottom[1]->height();
+  width_img_ = bottom[1]->width();
+
   vector<int> top0_shape(2);
   top0_shape[0] = num_det_;
   top0_shape[1] = 5;
   top[0]->Reshape(top0_shape);
 
-  vector<int> top1_shape(1);
+  vector<int> top1_shape(2);
   top1_shape[0] = num_det_;
+  top1_shape[1] = 5;
   top[1]->Reshape(top1_shape);
 
   vector<int> top2_shape(1);
   top2_shape[0] = num_det_;
   top[2]->Reshape(top2_shape);
+
+  vector<int> top3_shape(1);
+  top3_shape[0] = num_det_;
+  top[3]->Reshape(top3_shape);
 }
 
 template <typename Dtype>
@@ -269,7 +277,8 @@ void FeedbackLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
                                        const vector<Blob<Dtype>*>& top) {
   const Dtype* det_data = bottom[0]->cpu_data();
   Dtype* roi_data = top[0]->mutable_cpu_data();
-  Dtype* roi_score_data = top[1]->mutable_cpu_data();
+  Dtype* roi_normalized_data = top[1]->mutable_cpu_data();
+  Dtype* roi_score_data = top[2]->mutable_cpu_data();
 
   int idx_roi = 0;
   int idx_img = 0;
@@ -286,12 +295,23 @@ void FeedbackLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
       // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
       Dtype* roi = roi_data + idx_roi * 5;
+      Dtype* roi_normalized = roi_normalized_data + idx_roi * 5;
 
       roi[0] = det[0];
-      roi[1] = det[3];
-      roi[2] = det[4];
-      roi[3] = det[5];
-      roi[4] = det[6];
+      roi[1] = det[3] * width_img_;
+      roi[2] = det[4] * height_img_;
+      roi[3] = det[5] * width_img_;
+      roi[4] = det[6] * height_img_;
+
+      roi_normalized[0] = det[0];
+      roi_normalized[1] = det[3];
+      roi_normalized[2] = det[4];
+      roi_normalized[3] = det[5];
+      roi_normalized[4] = det[6];
+
+      // LOG(INFO) << "d: " << d << " " << roi[0] << " " << roi[1] << " " <<
+      // roi[2]
+      //<< " " << roi[3] << " " << roi[4];
 
       roi_score_data[idx_roi] = Dtype(1.0);
 
@@ -309,17 +329,19 @@ void FeedbackLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   CHECK_EQ(idx_img, num_det_img.size()) << "something error happen.";
 
-  vector<int> top2_shape(1);
-  top2_shape[0] = num_det_img.size();
-  top[2]->Reshape(top2_shape);
+  vector<int> top3_shape(1);
+  top3_shape[0] = num_det_img.size();
+  top[3]->Reshape(top3_shape);
 
-  Dtype* roi_num_data = top[2]->mutable_cpu_data();
+  Dtype* roi_num_data = top[3]->mutable_cpu_data();
   for (size_t t = 0; t < num_det_img.size(); t++) {
     roi_num_data[t] = num_det_img[t];
   }
 
-  vis_det(bottom[0], bottom[1], score_map_, save_id_);
-  save_id_ += num_det_img.size();
+  if (false) {
+    vis_det(bottom[0], bottom[1], score_map_, save_id_);
+    save_id_ += num_det_img.size();
+  }
 }
 
 template <typename Dtype>

@@ -160,6 +160,8 @@ void RepartitionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       vector<int> top_dims;
       top_dims.push_back(num_roi_);
       top_dims.push_back(num_class_);
+      // top_dims.push_back(1);
+      // top_dims.push_back(1);
       top[0]->Reshape(top_dims);
       caffe_gpu_set(top[0]->count(), Dtype(1), top[0]->mutable_gpu_data());
 
