@@ -332,6 +332,7 @@ void FeedbackLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   vector<int> top3_shape(1);
   top3_shape[0] = num_det_img.size();
   top[3]->Reshape(top3_shape);
+  // LOG(INFO)<<"num_det_img: "<<num_det_img.size();
 
   Dtype* roi_num_data = top[3]->mutable_cpu_data();
   for (size_t t = 0; t < num_det_img.size(); t++) {

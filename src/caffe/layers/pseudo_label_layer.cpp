@@ -9,7 +9,11 @@ namespace caffe {
 template <typename Dtype>
 void PseudoLabelLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
                                          const vector<Blob<Dtype>*>& top) {
-  CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
+  CHECK_GE(bottom[0]->num_axes(), 2) << "shape missmatch.";
+  if (bottom[0]->num_axes() > 2) {
+    CHECK_EQ(bottom[0]->height(), 1) << "shape missmatch.";
+    CHECK_EQ(bottom[0]->width(), 1) << "shape missmatch.";
+  }
 
   CHECK_EQ(bottom[1]->num(), bottom[0]->num()) << "number is not consist.";
   CHECK_EQ(bottom[1]->channels(), 5) << "shape missmatch.";
@@ -39,7 +43,11 @@ void PseudoLabelLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // data
 
   num_roi_ = bottom[0]->num();
-  CHECK_EQ(bottom[0]->num_axes(), 2) << "shape missmatch.";
+  CHECK_GE(bottom[0]->num_axes(), 2) << "shape missmatch.";
+  if (bottom[0]->num_axes() > 2) {
+    CHECK_EQ(bottom[0]->height(), 1) << "shape missmatch.";
+    CHECK_EQ(bottom[0]->width(), 1) << "shape missmatch.";
+  }
 
   CHECK_EQ(bottom[1]->num(), bottom[0]->num()) << "number is not consist.";
   CHECK_EQ(bottom[1]->channels(), 5) << "shape missmatch.";
