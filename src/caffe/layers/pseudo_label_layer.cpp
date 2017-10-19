@@ -31,6 +31,7 @@ void PseudoLabelLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK_EQ(bottom[3]->width(), 7) << "width of 4-th blob should be 7";
   }
   save_id_ = 0;
+  max_per_cls_ = 4;
 }
 
 template <typename Dtype>
@@ -129,7 +130,7 @@ void PseudoLabelLayer<Dtype>::top0forward(const vector<Blob<Dtype>*>& bottom,
           max_score = score;
           idx_score.clear();
           idx_score.push_back(r);
-        } else if (score == max_score) {
+        } else if (score == max_score && idx_score.size() < max_per_cls_) {
           idx_score.push_back(r);
         }
       }
@@ -164,6 +165,7 @@ void PseudoLabelLayer<Dtype>::top0forward(const vector<Blob<Dtype>*>& bottom,
     top_label[idx++] = roi_data[r * 5 + 4];
     top_label[idx++] = Dtype(0);
   }
+  //LOG(INFO) << "index_pgt_roi.size(): " << index_pgt_roi.size();
 }
 
 template <typename Dtype>

@@ -56,6 +56,7 @@ class PseudoLabelLayer : public Layer<Dtype> {
   int num_roi_;
 
   int reserve_size_;
+  int max_per_cls_;
 
   int num_det_;
   Blob<Dtype> roi_det_;
