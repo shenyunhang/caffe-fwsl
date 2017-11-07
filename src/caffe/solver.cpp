@@ -440,6 +440,8 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
   map<int, map<int, int> > all_num_pos;
   const shared_ptr<Net<Dtype> >& test_net = test_nets_[test_net_id];
   Dtype loss = 0;
+  Timer forward_timer;
+  double forward_time = 0.0;
   for (int i = 0; i < param_.test_iter(test_net_id); ++i) {
     SolverAction::Enum request = GetRequestedAction();
     // Check to see if stoppage of testing/training has been requested.
@@ -457,7 +459,9 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
     }
 
     Dtype iter_loss;
+    forward_timer.Start();
     const vector<Blob<Dtype>*>& result = test_net->Forward(&iter_loss);
+    forward_time += forward_timer.MicroSeconds();
     if (param_.test_compute_loss()) {
       loss += iter_loss;
     }
@@ -491,6 +495,7 @@ void Solver<Dtype>::TestDetection(const int test_net_id) {
       }
     }
   }
+  LOG(INFO) << "Forward pass: " << forward_time / 1000 << " ms.";
   if (requested_early_exit_) {
     LOG(INFO)     << "Test interrupted.";
     return;
