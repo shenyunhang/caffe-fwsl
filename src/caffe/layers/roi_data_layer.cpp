@@ -86,16 +86,16 @@ void Show_batch(const Batch<Dtype>* batch,
     ss << "image_" << n;
     cv::imshow(ss.str(), img_mat);
 
-    // cv::imwrite(save_path, opg_mat);
+    // cv::imwrite(save_path, cpg_mat);
     // LOG(INFO) << "save_path: " << save_path;
 
-    // cv::applyColorMap(opg_mat, opg_mat_jet, cv::COLORMAP_JET);
-    // cv::imwrite(save_path_jet, opg_mat_jet);
+    // cv::applyColorMap(cpg_mat, cpg_mat_jet, cv::COLORMAP_JET);
+    // cv::imwrite(save_path_jet, cpg_mat_jet);
 
     //-----------------------------------------------------------------------
 
     //-----------------------------------------------------------------------
-    // show the distubution of opg_blob data
+    // show the distubution of cpg_blob data
     // int total[26];
     // for (int i = 0; i < 26; ++i) {
     // total[i] = 0;
